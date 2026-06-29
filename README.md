@@ -69,7 +69,7 @@ Run the full dashboard with zero database or yfinance calls using synthetic GBM-
 
 ```bash
 git clone <repo-url>
-cd portfolio_analysis
+cd wake
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -309,7 +309,7 @@ python -m unittest discover -s tests/libraries/chat -p "test_*.py" -v
 ## Project Structure
 
 ```
-portfolio_analysis/
+wake/
 ├── generators/
 │   ├── importer.py                    # CSV → MySQL (optimized, parallel)
 │   ├── importer_unoptimized.py        # Legacy serial importer (reference only)

@@ -51,7 +51,7 @@ MYSQL_CACHE_TTL = 60*60*4  # 4 hours (was 1 hour) - balance between freshness an
 
 ### Generators ###
 
-ROOT_DIR = "/home/kineticrick/code/python/portfolio_analysis"
+ROOT_DIR = "/home/kineticrick/code/python/wake"
 
 FILEDIRS = {'entities': os.path.join(ROOT_DIR, 'files/entities'), 
             'splits': os.path.join(ROOT_DIR, 'files/splits'),
