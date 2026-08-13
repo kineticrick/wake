@@ -61,7 +61,7 @@ Run the full dashboard with zero database or yfinance calls using synthetic GBM-
 ## Quick Start
 
 ### Prerequisites
-- Python 3.10+
+- Python 3.12+ (required by the pinned `numpy`/`pandas` versions; verified on 3.14)
 - MySQL 8.0+
 - A virtual environment (recommended)
 
