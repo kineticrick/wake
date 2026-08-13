@@ -1,0 +1,13 @@
+# Development-only dependencies. Install with:
+#   pip install -r requirements-dev.txt
+# (this pulls in requirements.txt as well)
+#
+# The test suite itself runs on the standard library's unittest and needs
+# nothing from this file — pytest is here only as a nicer runner.
+-r requirements.txt
+
+pytest==9.1.1
+
+# Formatting / linting
+autopep8==2.3.2
+pycodestyle==2.14.0

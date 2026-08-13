@@ -286,8 +286,9 @@ Cache is invalidated automatically after any `set_history()` write via `mysql_ca
 ```bash
 source venv/bin/activate
 
-# Run all tests
-python -m unittest discover -s tests -p "test_*.py" -v
+# Run all tests (-t . keeps the repo root as the import root; without it
+# discovery treats tests/ as the root and tests.libraries shadows libraries/)
+python -m unittest discover -s tests -t . -p "test_*.py" -v
 
 # Run a specific test file
 python -m unittest tests.libraries.test_helpers -v
@@ -302,6 +303,14 @@ The chat layer has its own fully offline suite (no database, no network, no API 
 
 ```bash
 python -m unittest discover -s tests/libraries/chat -p "test_*.py" -v
+```
+
+The suite needs nothing beyond `requirements.txt`. If you prefer pytest's
+output, install the optional dev extras and use it as a drop-in runner:
+
+```bash
+pip install -r requirements-dev.txt
+pytest tests/ -q
 ```
 
 ---
