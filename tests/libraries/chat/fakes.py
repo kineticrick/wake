@@ -1,10 +1,25 @@
 """Test doubles for chat tools and engine — no DB, no network, deterministic."""
 
-import datetime
-
 import pandas as pd
 
 from libraries.chat.provider import LLMResponse
+
+# Fixture dates are anchored to "today" rather than hardcoded. The windowed
+# intervals ("6m" -> today - 180d, etc.) filter against real wall-clock time,
+# so fixed dates silently drift out of the window as the calendar advances and
+# stop exercising the path under test — a windowed breakdown then collapses to
+# a single row per group and reports a 0% return instead of the real one.
+_TODAY = pd.Timestamp.today().normalize()
+
+
+def _days_ago(n):
+    return (_TODAY - pd.Timedelta(days=n)).date()
+
+
+# Comfortably inside the 180-day "6m" window, with headroom on both ends.
+_WINDOW_OPEN = _days_ago(150)
+_WINDOW_MID = _days_ago(75)
+_WINDOW_CLOSE = _days_ago(5)
 
 
 def make_fake_handler():
@@ -55,7 +70,7 @@ def make_fake_handler():
 
         def get_portfolio_milestones(self):
             return pd.DataFrame({
-                "Date": pd.to_datetime(["2026-06-12", "2026-06-19"]),
+                "Date": pd.to_datetime([_WINDOW_MID, _WINDOW_CLOSE]),
                 "Interval": ["6m", "Lifetime"],
                 "Value": [3000.0, 3500.0],
                 "Value % Return": [16.67, 12.9],
@@ -77,8 +92,8 @@ def make_fake_handler():
 
         # Dimension history (windowed VW Return computed from these dollars).
         sectors_history_df = pd.DataFrame({
-            "Date": [datetime.date(2026, 1, 1), datetime.date(2026, 1, 1),
-                     datetime.date(2026, 6, 19), datetime.date(2026, 6, 19)],
+            "Date": [_WINDOW_OPEN, _WINDOW_OPEN,
+                     _WINDOW_CLOSE, _WINDOW_CLOSE],
             "Sector": ["Tech", "Health", "Tech", "Health"],
             "TotalValue": [2400.0, 400.0, 3000.0, 500.0],
             "TotalCostBasis": [3000.0, 400.0, 3000.0, 400.0],
@@ -93,7 +108,7 @@ def make_fake_handler():
                 "dimension": dimension, "account_type": account_type,
                 "symbols": symbols, "start_date": start_date}
             return pd.DataFrame({
-                "Date": [datetime.date(2026, 1, 1), datetime.date(2026, 6, 1)],
+                "Date": [_WINDOW_OPEN, _WINDOW_CLOSE],
                 "Sector": ["Tech", "Tech"],
                 "total_value": [2000.0, 2500.0],
                 "total_cost_basis": [2000.0, 2000.0],
@@ -102,12 +117,12 @@ def make_fake_handler():
         portfolio_history_df = pd.DataFrame(
             {"Value": [3000.0, 3200.0, 3500.0],
              "CostBasis": [3400.0, 3400.0, 3400.0]},
-            index=pd.to_datetime(["2026-01-01", "2026-03-01", "2026-06-19"]),
+            index=pd.to_datetime([_WINDOW_OPEN, _WINDOW_MID, _WINDOW_CLOSE]),
         )
 
         portfolio_assets_history_expanded_df = pd.DataFrame({
-            "Date": [datetime.date(2026, 1, 1), datetime.date(2026, 6, 19),
-                     datetime.date(2026, 1, 1), datetime.date(2026, 6, 19)],
+            "Date": [_WINDOW_OPEN, _WINDOW_CLOSE,
+                     _WINDOW_OPEN, _WINDOW_CLOSE],
             "Symbol": ["AAA", "AAA", "BBB", "BBB"],
             "ClosingPrice": [8.0, 10.0, 25.0, 20.0],
             "Value": [800.0, 1000.0, 2500.0, 2000.0],
