@@ -483,8 +483,11 @@ def gen_assets_historical_value(symbols: list=[],
     # Calculate value of asset at each date
     merged_df['Value'] = merged_df['Quantity'] * merged_df['ClosingPrice']
     
-    # Round to 2 decimal places
-    merged_df = merged_df.round(2)
+    # Round to 2 decimal places. Restrict to the numeric columns: the frame
+    # also carries a datetime 'Date', which round() never applied to anyway
+    # (pandas 2 skipped it silently, pandas 3 warns).
+    numeric_cols = merged_df.select_dtypes(include='number').columns
+    merged_df[numeric_cols] = merged_df[numeric_cols].round(2)
     
     # Fill in missing values with previous value, to cover weekends + holidays
     merged_df = merged_df.ffill()
@@ -651,7 +654,7 @@ def add_asset_info(asset_df: pd.DataFrame, truncate=True) -> pd.DataFrame:
     Given a dataframe of assets, add additional information* about each asset
     Info = Company Name, Sector, AssetType (Common Stock, ETF, REIT), Geography
 
-    If truncate is True, all strings will be truncated to 20 characters
+    If truncate is True, all strings will be truncated to 25 characters
 
     Returns: asset_df
         {Original DF}, Company Name, Sector, AssetType
@@ -661,9 +664,11 @@ def add_asset_info(asset_df: pd.DataFrame, truncate=True) -> pd.DataFrame:
 
     asset_info_df = _get_entities_df()
 
-    # Truncates long strings to 20 characters, for better display
+    # Truncates long strings, for better display. Both dtypes are named
+    # explicitly: these columns are pandas 3 'str', which include='object'
+    # only matches via a back-compat shim that pandas will drop.
     if truncate:
-        for col in asset_info_df.select_dtypes(include='object'):
+        for col in asset_info_df.select_dtypes(include=['object', 'str']):
             asset_info_df[col] = asset_info_df[col].str.slice(0, 25)
 
     asset_df = asset_df.merge(asset_info_df, on='Symbol', how='left')

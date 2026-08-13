@@ -1,7 +1,8 @@
 import unittest
+import warnings
 import pandas as pd
 from datetime import datetime
-from libraries.helpers import gen_hist_quantities, gen_assets_historical_value, gen_aggregated_historical_value
+from libraries.helpers import gen_hist_quantities, gen_assets_historical_value, gen_aggregated_historical_value, add_asset_info
 
 class TestHelpers(unittest.TestCase):
     def setUp(self):
@@ -88,6 +89,48 @@ class TestHelpers(unittest.TestCase):
         self.assertTrue(len(monthly_result) < len(weekly_result))
         self.assertTrue(len(quarterly_result) < len(monthly_result))
         self.assertTrue(len(yearly_result) < len(quarterly_result))
+
+    def test_gen_assets_historical_value_rounds_only_numeric_columns(self):
+        # DataFrame.round() silently skipped datetime columns in pandas 2 but
+        # warns in pandas 3, so the rounding must target numeric columns only.
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = gen_assets_historical_value(['AAPL'])
+
+        offenders = [str(w.message) for w in caught
+                     if 'round has no effect' in str(w.message)]
+        self.assertEqual(offenders, [],
+                         f"round() warned about non-numeric dtypes: {offenders}")
+
+        # Rounding must still actually apply to the numeric columns
+        for col in ['CostBasis', 'ClosingPrice', 'Value']:
+            values = result[col].dropna()
+            self.assertTrue((values.round(2) == values).all(),
+                            f"{col} was not rounded to 2 decimal places")
+
+        # ...and the Date column must survive untouched as a datetime
+        self.assertTrue(pd.api.types.is_datetime64_any_dtype(result['Date']))
+
+    def test_add_asset_info_truncates_without_dtype_warning(self):
+        # The entity columns are pandas 3 `str` dtype, not `object`. Selecting
+        # them via include='object' only works through a back-compat shim that
+        # pandas will remove — at which point truncation would silently select
+        # no columns and stop happening at all.
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = add_asset_info(pd.DataFrame({'Symbol': ['AAPL']}),
+                                    truncate=True)
+
+        offenders = [str(w.message) for w in caught
+                     if 'select_dtypes' in str(w.message)]
+        self.assertEqual(offenders, [],
+                         f"select_dtypes raised a deprecation: {offenders}")
+
+        # Truncation must still actually be applied to the string columns
+        for col in ['Name', 'Sector', 'AssetType', 'Geography']:
+            lengths = result[col].dropna().str.len()
+            self.assertTrue((lengths <= 25).all(),
+                            f"{col} exceeded the 25-character truncation")
 
     def test_gen_aggregated_historical_value(self):
         symbols = ['AAPL']
