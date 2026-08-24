@@ -111,6 +111,41 @@ class TestDownsampleHistoryMultiGroupCols(unittest.TestCase):
         self.assertLess(len(out), len(self.df))
 
 
+class TestDownsampleHistoryNonUniqueIndex(unittest.TestCase):
+    """
+    MINOR 4 regression: downsample_history dedupes on index LABELS (via
+    `.loc[groupby(...).idxmin()]`), not rows. A caller that hands it a frame
+    with a non-unique index (e.g. two per-symbol frames concatenated with
+    `pd.concat([...], ignore_index=False)`, each independently indexed
+    0..N-1) can lose a whole group with no error: idxmin()/idxmax() return
+    labels, and `.loc[[label, ...]]` on a frame with duplicate labels fans
+    out to every row sharing that label instead of the one intended.
+    """
+
+    def test_both_symbols_survive_a_duplicate_label_index(self):
+        today = datetime.date(2026, 8, 24)
+        old_dates = pd.date_range(
+            end=pd.Timestamp(today) - pd.Timedelta(days=400),
+            periods=6, freq='D').date
+
+        df_a = pd.DataFrame({'Date': old_dates, 'Symbol': 'A',
+                             'Value': range(6)})
+        df_b = pd.DataFrame({'Date': old_dates, 'Symbol': 'B',
+                             'Value': range(100, 106)})
+        # Both blocks independently indexed 0..5 -- deliberately non-unique
+        # once concatenated, as would happen from pd.concat(..., ignore_index=False)
+        # on two per-symbol frames built separately.
+        df_a.index = range(6)
+        df_b.index = range(6)
+        df = pd.concat([df_a, df_b])
+        self.assertFalse(df.index.is_unique)  # sanity: this IS the trigger
+
+        out = downsample_history(df, group_cols=('Symbol',),
+                                 window_days=365, today=today)
+
+        self.assertEqual(set(out['Symbol']), {'A', 'B'})
+
+
 class TestTopNSymbols(unittest.TestCase):
 
     def test_picks_largest_absolute_movers(self):

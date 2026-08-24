@@ -30,6 +30,15 @@ def downsample_history(df: pd.DataFrame, date_col: str = 'Date',
     if df.empty:
         return df
 
+    # `.loc[groupby(...).idxmin()]` below relies on the index being unique --
+    # idxmin()/idxmax() return index LABELS, and if those labels repeat
+    # across groups, `.loc[[label, ...]]` fans out to every row sharing that
+    # label instead of the one row intended, silently dropping other groups'
+    # rows from the result entirely. Reindexing here (rather than trusting
+    # callers to pass a unique index) makes this function safe regardless of
+    # what index the caller's frame happens to carry.
+    df = df.reset_index(drop=True)
+
     if window_days is None:
         window_days = DOWNSAMPLE_DAILY_WINDOW_DAYS
     if today is None:
