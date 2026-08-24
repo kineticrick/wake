@@ -406,3 +406,28 @@ fail_history_meta_run_sql = \
 read_last_successful_run_query = \
     ("SELECT run_finished, tables_json FROM history_meta "
      "WHERE status = 'success' ORDER BY run_finished DESC LIMIT 1")
+
+# current_prices - intraday price snapshot written by generators/price_snapshot.py
+# so the read-only web tier never has to call yfinance for a live quote.
+create_current_prices_table_sql = \
+    ("CREATE TABLE IF NOT EXISTS current_prices ("
+     "symbol VARCHAR(16) NOT NULL PRIMARY KEY, "
+     "price DECIMAL(18, 4) NOT NULL, "
+     "fetched_at DATETIME NOT NULL)")
+
+replace_current_price_sql = \
+    ("REPLACE INTO current_prices (symbol, price, fetched_at) "
+     "VALUES (%s, %s, %s)")
+
+read_current_prices_query = "SELECT symbol, price FROM current_prices"
+read_current_prices_columns = ['Symbol', 'Current Price']
+
+# Fallback for the read-only tier when a symbol has no snapshot yet (first
+# deploy, or a symbol bought since the last snapshot run): its most recent
+# closing price from assets_history.
+read_latest_closing_prices_query = \
+    ("SELECT a.symbol, a.closing_price FROM assets_history a "
+     "INNER JOIN (SELECT symbol, MAX(date) AS max_date "
+     "            FROM assets_history GROUP BY symbol) m "
+     "  ON a.symbol = m.symbol AND a.date = m.max_date")
+read_latest_closing_prices_columns = ['Symbol', 'Current Price']

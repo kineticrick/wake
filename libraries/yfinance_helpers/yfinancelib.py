@@ -10,8 +10,14 @@ import yfinance as yf
 
 from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
-from libraries.pandas_helpers import print_full
-from libraries.globals import BUSINESS_CADENCE_MAP, CADENCE_MAP, SYMBOL_BLACKLIST
+from libraries.pandas_helpers import print_full, mysql_to_df
+from libraries.globals import (BUSINESS_CADENCE_MAP, CADENCE_MAP,
+                               SYMBOL_BLACKLIST, PORTFOLIO_READ_ONLY)
+from libraries.db import dbcfg
+from libraries.db.sql import (read_current_prices_query,
+                              read_current_prices_columns,
+                              read_latest_closing_prices_query,
+                              read_latest_closing_prices_columns)
 from pandas.tseries.offsets import Day
 
 from diskcache import Cache
@@ -204,15 +210,46 @@ def _gen_current_prices(tickers: list) -> list:
         
     return current_prices
 
+def read_current_prices_from_db(tickers: list) -> pd.DataFrame:
+    """
+    Read the price snapshot written by generators/price_snapshot.py.
+
+    Any ticker with no snapshot row (first deploy, or bought since the last
+    snapshot) falls back to its most recent closing price, so the portfolio
+    value degrades to "as of last close" rather than becoming NaN.
+
+    Returns: Symbol, Current Price -- restricted to `tickers`.
+    """
+    prices_df = mysql_to_df(read_current_prices_query,
+                            read_current_prices_columns, dbcfg, cached=False)
+    prices_df = prices_df[prices_df['Symbol'].isin(tickers)]
+
+    missing = set(tickers) - set(prices_df['Symbol'])
+    if missing:
+        closes_df = mysql_to_df(read_latest_closing_prices_query,
+                                read_latest_closing_prices_columns,
+                                dbcfg, cached=False)
+        closes_df = closes_df[closes_df['Symbol'].isin(missing)]
+        prices_df = pd.concat([prices_df, closes_df], ignore_index=True)
+
+    return prices_df.reset_index(drop=True)
+
+
 def get_current_price(tickers: list) -> pd.DataFrame:
-    """ 
+    """
     Given list of tickers, return current/realtime price data
-    
+
+    In read-only mode this reads the current_prices snapshot table rather than
+    calling yfinance, so the web tier needs no network egress.
+
     Returns:
         current_prices_df: Symbol, Current Price
     """
+    if PORTFOLIO_READ_ONLY:
+        return read_current_prices_from_db(tickers)
+
     current_prices = _gen_current_prices(tickers)
-                        
+
     return pd.DataFrame(current_prices)
     
 # For the ticker, unit and length specified, retrieve summary returns 
