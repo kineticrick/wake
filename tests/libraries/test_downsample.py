@@ -64,6 +64,53 @@ class TestDownsampleHistory(unittest.TestCase):
         self.assertTrue(downsample_history(empty, group_cols=('Symbol',)).empty)
 
 
+class TestDownsampleHistoryMultiGroupCols(unittest.TestCase):
+    """Covers the GAP 1 fix: a chart trace can be identified by MORE than one
+    column (Assets tab traces are (Symbol, AccountType) pairs). Grouping on
+    only one of the two would let one account's endpoints leak into, or
+    replace, another account's."""
+
+    def setUp(self):
+        self.today = datetime.date(2026, 8, 24)
+        dates = pd.date_range(end=pd.Timestamp(self.today),
+                              periods=365 * 2, freq='D').date
+        rows = []
+        # Same symbol, two accounts, with DIFFERENT value ranges so a mixup
+        # between the two would be detectable.
+        for account, base in (('Discretionary', 100.0), ('Retirement', 900.0)):
+            for i, d in enumerate(dates):
+                rows.append({'Date': d, 'Symbol': 'QQQ', 'AccountType': account,
+                             'Value': base + i})
+        self.df = pd.DataFrame(rows)
+
+    def test_trace_count_is_unchanged(self):
+        out = downsample_history(self.df, group_cols=('Symbol', 'AccountType'),
+                                 window_days=365, today=self.today)
+        pairs_in = self.df[['Symbol', 'AccountType']].drop_duplicates()
+        pairs_out = out[['Symbol', 'AccountType']].drop_duplicates()
+        self.assertEqual(len(pairs_out), len(pairs_in))
+
+    def test_endpoints_do_not_cross_accounts(self):
+        out = downsample_history(self.df, group_cols=('Symbol', 'AccountType'),
+                                 window_days=365, today=self.today)
+        for account in ('Discretionary', 'Retirement'):
+            original = self.df[self.df['AccountType'] == account]
+            kept = out[out['AccountType'] == account]
+            self.assertEqual(kept['Date'].min(), original['Date'].min())
+            self.assertEqual(kept['Date'].max(), original['Date'].max())
+            self.assertEqual(
+                kept.loc[kept['Date'].idxmin(), 'Value'],
+                original.loc[original['Date'].idxmin(), 'Value'])
+            self.assertEqual(
+                kept.loc[kept['Date'].idxmax(), 'Value'],
+                original.loc[original['Date'].idxmax(), 'Value'])
+
+    def test_old_data_is_thinned_per_account(self):
+        out = downsample_history(self.df, group_cols=('Symbol', 'AccountType'),
+                                 window_days=365, today=self.today)
+        self.assertLess(len(out), len(self.df))
+
+
 class TestTopNSymbols(unittest.TestCase):
 
     def test_picks_largest_absolute_movers(self):

@@ -67,6 +67,13 @@ DOWNSAMPLE_DAILY_WINDOW_DAYS = 365
 # How many series the Hypotheticals/Assets charts show before the user opts in
 # to more via the existing dropdowns.
 DEFAULT_CHART_SERIES = 10
+# The Assets chart renders one trace per held (Symbol, AccountType) pair --
+# ~34 concurrently by default, an order of magnitude more than the dimension
+# tabs' 3-30 traces -- and unlike Hypotheticals it must keep every trace (it
+# IS the "what do I hold" view, not a top-movers view). At that trace count,
+# DOWNSAMPLE_DAILY_WINDOW_DAYS's 1-year daily window still exceeds the 500 KB
+# payload budget, so this chart gets its own, shorter daily window.
+ASSETS_DOWNSAMPLE_WINDOW_DAYS = 60
 
 ### Generators ###
 

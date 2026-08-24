@@ -125,7 +125,11 @@ def update_normalized_hypo_graph(sectors, assets):
     normalized_hypo_df = data['normalized_hypo_df']
 
     if not sectors and not assets:
-        df = normalized_hypo_df
+        # Same default as the initial view: biggest movers, not all 102
+        # symbols. An explicit sector/asset selection still gets exactly
+        # what was picked.
+        default_symbols = top_n_symbols(normalized_hypo_df)
+        df = normalized_hypo_df[normalized_hypo_df['Symbol'].isin(default_symbols)]
     else:
         df = normalized_hypo_df[normalized_hypo_df['Symbol'].isin(assets)]
 

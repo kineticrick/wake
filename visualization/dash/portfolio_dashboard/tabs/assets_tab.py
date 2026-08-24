@@ -5,6 +5,8 @@ import plotly.graph_objs as go
 import pandas as pd
 
 from visualization.dash.portfolio_dashboard.globals import *
+from libraries.downsample import downsample_history
+from libraries.globals import ASSETS_DOWNSAMPLE_WINDOW_DAYS
 from visualization.dash.assets_chart_helpers import prepare_per_account_chart_df
 
 import dash_mantine_components as dmc
@@ -95,16 +97,33 @@ def update_assets_hist_graph(selected_rows, interval):
             return go.Figure().update_layout(
                 title="No data available. Select assets from the table above.")
 
+        # Thin the payload before serialization. A trace is a (Symbol,
+        # AccountType) pair, so group on both -- otherwise one account's
+        # series could borrow another account's endpoints. This chart can
+        # carry ~34 concurrent traces (every holding, all accounts) where the
+        # dimension tabs carry a handful, so it uses a shorter daily window
+        # than the shared default -- see ASSETS_DOWNSAMPLE_WINDOW_DAYS.
+        df = downsample_history(df, group_cols=('Symbol', 'AccountType'),
+                                window_days=ASSETS_DOWNSAMPLE_WINDOW_DAYS)
+
         # color = ticker (a ticker's accounts share a color),
         # dash  = account (distinguishes Discretionary vs Retirement).
+        # The rich hover (dollar Value, account label, formatted % change) is
+        # only affordable once the user has narrowed the view -- at the full
+        # ~34-trace default it roughly doubles the payload. Selecting rows
+        # restores it.
+        line_kwargs = {}
+        if selected_rows:
+            line_kwargs['hover_data'] = {
+                'Value': ':$,.2f', 'AccountType': True,
+                'ClosingPrice % Change': ':.2f%'}
         fig = px.line(
             df,
             x='Date',
             y='ClosingPrice % Change',
             color='Symbol',
             line_dash='AccountType',
-            hover_data={'Value': ':$,.2f', 'AccountType': True,
-                        'ClosingPrice % Change': ':.2f%'},
+            **line_kwargs,
         )
         fig.update_layout(height=800)
         fig.update_yaxes(ticksuffix="%")
