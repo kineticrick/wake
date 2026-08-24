@@ -10,7 +10,7 @@ from pandas.tseries.offsets import Day, BDay
 from libraries.db import dbcfg, MysqlDB
 from libraries.db.mysql_helpers import mysql_cache_evict
 from libraries.db.sql import history_table_indexes
-from libraries.globals import MYSQL_CACHE_HISTORY_TAG
+from libraries.globals import MYSQL_CACHE_HISTORY_TAG, PORTFOLIO_READ_ONLY
 
 class BaseHistoryHandler:
     # Placeholder for SQL to create history table in DB
@@ -18,10 +18,28 @@ class BaseHistoryHandler:
     # Table name used for index lookup (set by subclasses or derived from SQL)
     history_table_name = None
     
-    def __init__(self) -> None:
-        """ 
-        Initialize handler with updated history from DB, for either assets or total portfolio
+    def __init__(self, read_only: bool = None) -> None:
         """
+        Initialize handler with history from DB, for either assets or total portfolio.
+
+        read_only:
+            True  -> read the existing history and stop. No DDL, no yfinance,
+                     no writes. Used by the Dash web tier.
+            False -> current behavior: create the table if needed and bring the
+                     history up to date. Used by generators/daily_update.py.
+            None  -> take the value from globals.PORTFOLIO_READ_ONLY.
+        """
+        self.read_only = (
+            PORTFOLIO_READ_ONLY if read_only is None else read_only)
+
+        if self.read_only:
+            # The single reason this mode exists: in write mode a stale table
+            # triggers set_history(), which fetches 139 tickers from yfinance
+            # (58-73s) synchronously inside whatever called us.
+            self.history_df = self.get_history()
+            self.latest_history_date = self.get_latest_date()
+            return
+
         # Initialize {asset,portfolio,asset_hypothetical}_history table in DB, if not already present
         self.gen_table()
         
@@ -96,11 +114,13 @@ class BaseHistoryHandler:
         """
         pass
     
-    def get_latest_date(self) -> str:
+    def get_latest_date(self):
         """
-        Get date of most recent entry available in DB
-        
+        Get date of most recent entry available in DB, or None if there is none.
+
         Returns:
-            latest_date (str): Latest date in DB
+            latest_date (datetime.date | None)
         """
+        if self.history_df is None or self.history_df.empty:
+            return None
         return self.history_df['Date'].max()

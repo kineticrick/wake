@@ -16,12 +16,12 @@ class AccountTypeHistoryHandler(BaseHistoryHandler):
     create_history_table_sql = create_account_types_history_table_sql
     history_table_name = 'account_types_history'
     
-    def __init__(self) -> None: 
-        """ 
-        Initialize object with updated account_type histories from DB. 
+    def __init__(self, read_only: bool=None) -> None:
+        """
+        Initialize object with updated account_type histories from DB.
         (Date, account_type, value)
         """
-        super().__init__()
+        super().__init__(read_only=read_only)
 
     def set_history(self, start_date: str=None, overwrite: bool=False) -> None:
         """

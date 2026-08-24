@@ -21,8 +21,9 @@ class AssetHypotheticalHistoryHandler(BaseHistoryHandler):
     create_history_table_sql = create_assets_hypothetical_history_table_sql
     history_table_name = 'assets_hypothetical_history'
     
-    def __init__(self, symbols: list=[], 
-                 assets_history_df: pd.DataFrame=None) -> None:
+    def __init__(self, symbols: list=[],
+                 assets_history_df: pd.DataFrame=None,
+                 read_only: bool=None) -> None:
         """ 
         Initialize object with updated asset hypothetical history from DB, 
         which contains the hypotheitcal quantity and value of each asset 
@@ -62,8 +63,8 @@ class AssetHypotheticalHistoryHandler(BaseHistoryHandler):
         else:
             self.assets_history_df = assets_history_df
 
-        super().__init__()
-        
+        super().__init__(read_only=read_only)
+
         actuals_df = self.assets_history_df
         actuals_df['Owned'] = "Actual"
         

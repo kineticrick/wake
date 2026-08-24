@@ -29,17 +29,17 @@ class AssetHistoryHandler(BaseHistoryHandler):
     create_history_table_sql = create_assets_history_table_sql
     history_table_name = 'assets_history'
     
-    def __init__(self, symbols: list=[]) -> None: 
-        """ 
-        For all symbols in symbols, initialize object with updated 
+    def __init__(self, symbols: list=[], read_only: bool=None) -> None:
+        """
+        For all symbols in symbols, initialize object with updated
         asset histories from DB. (Date, symbol, quantity, price, value)
-        
+
         If 'symbols' is empty, initialize object with all asset histories from DB.
         """
         assert(isinstance(symbols, list))
-        self.symbols = symbols   
+        self.symbols = symbols
 
-        super().__init__()
+        super().__init__(read_only=read_only)
 
     def set_history(self, start_date: str=None, overwrite: bool=False) -> pd.DataFrame:
         """

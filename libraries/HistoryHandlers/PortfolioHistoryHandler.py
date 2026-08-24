@@ -16,16 +16,17 @@ from libraries.pandas_helpers import print_full, mysql_to_df
 class PortfolioHistoryHandler(BaseHistoryHandler):
     create_history_table_sql = create_portfolio_history_table_sql
     
-    def __init__(self, assets_history_df: pd.DataFrame=None) -> None:
-        """ 
-        Initialize object with updated portfolio history from DB, 
+    def __init__(self, assets_history_df: pd.DataFrame=None,
+                 read_only: bool=None) -> None:
+        """
+        Initialize object with updated portfolio history from DB,
         which contains a total value of the entire portfolio (all assets)
         for each day of existence
-       
+
         (Date, value)
         """
         self.assets_history_df = assets_history_df
-        super().__init__()
+        super().__init__(read_only=read_only)
 
     def set_history(self, start_date: str=None, overwrite: bool=False) -> pd.DataFrame:
         """

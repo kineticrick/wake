@@ -49,6 +49,13 @@ MYSQL_CACHE_ENABLED = True  # Enabled for performance (was False)
 MYSQL_CACHE_HISTORY_TAG = 'historycaches'
 MYSQL_CACHE_TTL = 60*60*4  # 4 hours (was 1 hour) - balance between freshness and performance
 
+# When true, the process must NEVER write to the database or make outbound
+# network calls. The Dash web tier runs this way so it can be served from a
+# read-only MySQL grant with no internet egress; all history updates happen in
+# generators/daily_update.py instead. See
+# docs/superpowers/specs/2026-08-24-read-only-web-tier-design.md
+PORTFOLIO_READ_ONLY = os.environ.get('PORTFOLIO_READ_ONLY') == '1'
+
 ### Generators ###
 
 ROOT_DIR = "/home/kineticrick/code/python/wake"
