@@ -22,6 +22,7 @@ from libraries.HistoryHandlers import PortfolioHistoryHandler
 from libraries.HistoryHandlers import SectorHistoryHandler
 from libraries.HistoryHandlers import AccountTypeHistoryHandler
 from libraries.HistoryHandlers import GeographyHistoryHandler
+from libraries.db.history_meta import compute_staleness, last_successful_run
 
 class DashboardHandler:
     def __init__(self) -> None:
@@ -110,6 +111,15 @@ class DashboardHandler:
         self._account_types_summary_df = None
         self._geography_history_df = None
         self._geography_summary_df = None
+
+        ####### DATA FRESHNESS #######
+        # Read-only mode never repairs stale data, so the dashboard reports it
+        # instead. A missing/failed run reads as stale.
+        try:
+            self.data_as_of, self._table_dates = last_successful_run()
+        except Exception:                          # noqa: BLE001 - never block startup
+            self.data_as_of, self._table_dates = None, {}
+        self.is_stale = compute_staleness(self.data_as_of)
 
     def _load_hypotheticals(self):
         """Load hypothetical history data on first access."""

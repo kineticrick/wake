@@ -9,6 +9,7 @@ Activated by setting the PORTFOLIO_DEMO_MODE=1 env var before importing globals.
 which happens automatically when portfolio_dashboard.py is started with --demo.
 """
 
+import datetime
 import os
 import sys
 
@@ -384,6 +385,11 @@ class DemoDashboardHandler(DashboardHandler):
         self._account_types_summary_df = None
         self._geography_history_df = None
         self._geography_summary_df = None
+
+        # Demo data is generated fresh on every run, so it is never stale.
+        self.data_as_of = datetime.date.today()
+        self._table_dates = {}
+        self.is_stale = False
 
         print("✓ Demo data generation complete")
 

@@ -38,6 +38,13 @@ from visualization.dash.portfolio_dashboard.tabs import (
                                                          geography_tab)
 from visualization.dash.portfolio_dashboard.tabs.chat_tab import chat_tab
 
+# Import position matters. globals.py instantiates DASH_HANDLER at import time
+# and branches on PORTFOLIO_DEMO_MODE, which portfolio_dashboard.py sets from
+# --demo at the very top. Importing this above the tab imports would construct
+# the real (non-demo) handler and silently break `--demo`.
+from visualization.dash.portfolio_dashboard.globals import DASH_HANDLER
+from visualization.dash.portfolio_dashboard.banners import build_staleness_banner
+
 
 print("Loading Portfolio Tabs...")
 
@@ -69,14 +76,21 @@ _tabs = dmc.Tabs(
     ],
 )
 
+_banners = []
+
 if os.environ.get('PORTFOLIO_DEMO_MODE') == '1':
-    _content = dmc.Stack([
-        dmc.Alert(
-            "DEMO MODE — All data is synthetic. No real financial information is displayed.",
-            color="orange", variant="filled", mb="xs",
-        ),
-        _tabs,
-    ], gap=0)
+    _banners.append(dmc.Alert(
+        "DEMO MODE — All data is synthetic. No real financial information is displayed.",
+        color="orange", variant="filled", mb="xs",
+    ))
+
+_staleness_banner = build_staleness_banner(
+    DASH_HANDLER.data_as_of, DASH_HANDLER.is_stale)
+if _staleness_banner is not None:
+    _banners.append(_staleness_banner)
+
+if _banners:
+    _content = dmc.Stack(_banners + [_tabs], gap=0)
 else:
     _content = _tabs
 
