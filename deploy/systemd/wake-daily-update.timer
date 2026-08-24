@@ -1,0 +1,13 @@
+[Unit]
+Description=Run Wake daily history update after US market close
+
+[Timer]
+# 17:30 America/New_York, weekdays. Market closes at 16:00 ET; the delay gives
+# yfinance time to settle the day's closing prices.
+OnCalendar=Mon-Fri 17:30 America/New_York
+# Catch up after a missed run (laptop asleep) instead of skipping the day.
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

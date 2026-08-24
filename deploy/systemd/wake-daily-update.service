@@ -1,0 +1,12 @@
+[Unit]
+Description=Wake portfolio daily history update
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/kineticrick/code/python/wake
+# Deliberately NOT read-only: this is the write tier.
+Environment=PORTFOLIO_READ_ONLY=0
+ExecStart=/home/kineticrick/code/python/wake/venv/bin/python generators/daily_update.py --verbose
+TimeoutStartSec=1800

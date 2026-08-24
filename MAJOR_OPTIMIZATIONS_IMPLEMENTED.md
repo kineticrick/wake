@@ -1,5 +1,14 @@
 # Major Optimizations Implemented
 
+> **SUPERSEDED (2026-08-24).** Measurements in this document did not hold up
+> under profiling. The dominant cost was never rendering or DataFrame work — it
+> was a synchronous 58–73 second yfinance fetch running inside a Dash callback.
+> The `aggregate_assets_history_by_symbol` "~20s hotspot" was cProfile overhead;
+> the real figure is 0.83s. Client-side rendering blocks the main thread for 0ms
+> (Plotly already uses WebGL). A framework migration is not warranted.
+>
+> See `docs/superpowers/specs/2026-08-24-read-only-web-tier-design.md`.
+
 This document details the major performance optimizations implemented in the portfolio analysis system. These optimizations require more significant refactoring than the quick wins but provide substantial performance improvements.
 
 **Date Implemented:** December 2025

@@ -1,0 +1,11 @@
+[Unit]
+Description=Wake intraday price snapshot
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/kineticrick/code/python/wake
+Environment=PORTFOLIO_READ_ONLY=0
+ExecStart=/home/kineticrick/code/python/wake/venv/bin/python generators/price_snapshot.py
+TimeoutStartSec=300

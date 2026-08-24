@@ -1,5 +1,14 @@
 # Dashboard Framework Comparison
 
+> **SUPERSEDED (2026-08-24).** Measurements in this document did not hold up
+> under profiling. The dominant cost was never rendering or DataFrame work — it
+> was a synchronous 58–73 second yfinance fetch running inside a Dash callback.
+> The `aggregate_assets_history_by_symbol` "~20s hotspot" was cProfile overhead;
+> the real figure is 0.83s. Client-side rendering blocks the main thread for 0ms
+> (Plotly already uses WebGL). A framework migration is not warranted.
+>
+> See `docs/superpowers/specs/2026-08-24-read-only-web-tier-design.md`.
+
 **Date:** December 30, 2025
 **Current Framework:** Plotly Dash
 **Use Case:** Personal portfolio analysis dashboard with 100+ assets, multi-year historical data

@@ -1,0 +1,16 @@
+[Unit]
+Description=Refresh Wake current-price snapshot every 15 minutes during market hours
+
+[Timer]
+# "09:30..16:00/15" (mixing an HH:MM..HH:MM range with a /15 step) is not
+# valid systemd calendar syntax -- systemd-analyze --user verify rejects it
+# ("Timer unit lacks value setting. Refusing."). The idiomatic equivalent is
+# an hour range with the step on minutes, which fires at :00/:15/:30/:45
+# every hour from 09:00 through 16:45 ET -- a few extra snapshots just before
+# the open and after the close, which is harmless for a price cache refresh.
+OnCalendar=Mon-Fri 09..16:00/15 America/New_York
+Persistent=false
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

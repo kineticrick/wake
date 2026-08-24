@@ -19,8 +19,10 @@ pip install -r requirements.txt
 
 ### Testing
 ```bash
-# Run all tests
-python -m unittest discover -s tests -p "test_*.py" -v
+# Run all tests (-t . keeps the repo root as the import root; without it,
+# discovery treats tests/ as the root and tests.libraries shadows libraries/,
+# so every test module fails with ModuleNotFoundError)
+python -m unittest discover -s tests -t . -p "test_*.py" -v
 
 # Run specific test file
 python -m unittest tests.libraries.test_helpers -v
@@ -28,6 +30,12 @@ python -m unittest tests.libraries.test_helpers -v
 # Run specific test class or method
 python -m unittest tests.libraries.test_helpers.TestHelpers.test_gen_hist_quantities_basic -v
 ```
+
+`discover -s tests -t . ...` collects the full suite (137 tests as of this
+writing), including `tests/libraries/chat/` and `tests/generators/`. All of it
+runs offline against mocks/a real MySQL connection in ~10s — no yfinance
+network calls are made. Use the specific-file/method forms above when you only
+need a fast, targeted run.
 
 ### Running the Dashboard
 ```bash
@@ -55,6 +63,25 @@ python generators/summary_table_generator.py
 - Parallel CSV processing across brokerages using ThreadPoolExecutor
 - Parameterized queries (prevents SQL injection)
 
+### Scheduled Updates
+```bash
+# Bring every derived history table up to date (yfinance + DB writes).
+# This is what the systemd timer runs after market close.
+python generators/daily_update.py --verbose
+
+# Refresh the intraday current-price snapshot
+python generators/price_snapshot.py
+```
+
+### Running the dashboard read-only
+```bash
+PORTFOLIO_READ_ONLY=1 python visualization/dash/portfolio_dashboard/portfolio_dashboard.py
+```
+
+In read-only mode the app never calls yfinance and never writes to the
+database — history is kept current by the scheduled jobs above. This is the
+mode to use when hosting. See `deploy/README.md`.
+
 ## Architecture
 
 ### Data Flow
@@ -73,6 +100,7 @@ All handlers inherit from `BaseHistoryHandler` which implements automatic histor
 - Checks DB for latest history date
 - Fetches new data if behind current trading day or if weekend gaps exist
 - Uses `get_history()` (retrieve from DB) and `set_history()` (compute and store) pattern
+- **Exception:** when `PORTFOLIO_READ_ONLY=1` (see `libraries/globals.py`), handlers only call `get_history()` — no yfinance calls, no DDL, no DB writes. This is the mode the Dash web tier runs in; `generators/daily_update.py` is the scheduled job that writes history instead (see Scheduled Updates above).
 
 **Handler types:**
 - `AssetHistoryHandler` - Individual asset (ticker) values over time

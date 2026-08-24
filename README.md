@@ -181,6 +181,27 @@ This regenerates `assets_history`, `portfolio_history`, and
 `assets_hypothetical_history` from your transactions (prices are cached). It is
 safe to re-run.
 
+### Scheduled Updates
+
+```bash
+# Bring every derived history table up to date (yfinance + DB writes).
+# This is what the systemd timer runs after market close.
+python generators/daily_update.py --verbose
+
+# Refresh the intraday current-price snapshot
+python generators/price_snapshot.py
+```
+
+### Running the dashboard read-only
+
+```bash
+PORTFOLIO_READ_ONLY=1 python visualization/dash/portfolio_dashboard/portfolio_dashboard.py
+```
+
+In read-only mode the app never calls yfinance and never writes to the
+database — history is kept current by the scheduled jobs above. This is the
+mode to use when hosting. See `deploy/README.md`.
+
 ---
 
 ## Architecture
@@ -211,7 +232,7 @@ Brokerage CSVs
 
 ### HistoryHandlers (`libraries/HistoryHandlers/`)
 
-Each handler inherits `BaseHistoryHandler`, which automatically checks whether the DB history is up to date and calls `set_history()` to fill any gaps.
+Each handler inherits `BaseHistoryHandler`, which automatically checks whether the DB history is up to date and calls `set_history()` to fill any gaps — unless `PORTFOLIO_READ_ONLY=1` is set, in which case handlers only call `get_history()` and never fetch from yfinance or write to the DB. Keeping history current in that mode is the job of the scheduled jobs described in [Scheduled Updates](#scheduled-updates) above.
 
 | Handler | Output Table | What It Computes |
 |---------|-------------|-----------------|
@@ -261,6 +282,7 @@ This lets the system track the full investment journey through mergers and acqui
 |----------|---------|---------|
 | `MYSQL_CACHE_ENABLED` | `True` | Enable diskcache for DB query results |
 | `MYSQL_CACHE_TTL` | `14400` (4 h) | Cache time-to-live in seconds |
+| `PORTFOLIO_READ_ONLY` | `False` | Set via `PORTFOLIO_READ_ONLY=1` env var. When true, history handlers only read from the DB — no yfinance calls, no writes. See [Running the dashboard read-only](#running-the-dashboard-read-only) |
 | `SYMBOL_BLACKLIST` | `[...]` | Delisted tickers to skip during history updates |
 | `ACCOUNT_TYPES` | `['Discretionary', 'Retirement']` | Valid account type labels |
 | `FILEDIRS` | `{...}` | Paths to each category of input CSV files |
