@@ -32,8 +32,14 @@ class AssetHypotheticalHistoryHandler(BaseHistoryHandler):
         (Date, Symbol, Quantity, ClosingPrice, Value)
         """
         assert(isinstance(symbols, list))
-        
-        # If symbols is not provided, then populate with 
+
+        # Resolve read_only up front (same rule BaseHistoryHandler.__init__
+        # uses) so the nested AssetHistoryHandler construction below -- which
+        # runs before super().__init__() -- can forward our actual mode
+        # instead of independently falling back to the global.
+        self.read_only = self._resolve_read_only(read_only)
+
+        # If symbols is not provided, then populate with
         # all assets which have been completely exited
         # (i.e. quantity = 0)
         
@@ -56,7 +62,8 @@ class AssetHypotheticalHistoryHandler(BaseHistoryHandler):
 
         if assets_history_df is None:
             # Initialize AssetHistoryHandler to ensure that base data is up-to-date
-            asset_history_handler = AssetHistoryHandler(self.symbols)
+            asset_history_handler = AssetHistoryHandler(
+                self.symbols, read_only=self.read_only)
             # Stored history is per-account; this handler works per-symbol.
             self.assets_history_df = aggregate_assets_history_by_symbol(
                 asset_history_handler.history_df)

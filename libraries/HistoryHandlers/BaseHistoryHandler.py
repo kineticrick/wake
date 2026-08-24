@@ -18,6 +18,22 @@ class BaseHistoryHandler:
     # Table name used for index lookup (set by subclasses or derived from SQL)
     history_table_name = None
     
+    @staticmethod
+    def _resolve_read_only(read_only: bool = None) -> bool:
+        """
+        Single place that turns the `read_only` constructor argument into a
+        concrete bool: an explicit True/False wins, None defers to the
+        process-wide globals.PORTFOLIO_READ_ONLY.
+
+        Subclasses that construct a nested handler (e.g. an
+        AssetHistoryHandler pulled in on demand) before calling
+        super().__init__() must resolve `self.read_only` with this same
+        helper first and forward it explicitly, rather than letting the
+        nested handler fall back to the global on its own -- the global
+        might not agree with an explicit read_only= the caller passed to us.
+        """
+        return PORTFOLIO_READ_ONLY if read_only is None else read_only
+
     def __init__(self, read_only: bool = None) -> None:
         """
         Initialize handler with history from DB, for either assets or total portfolio.
@@ -29,8 +45,7 @@ class BaseHistoryHandler:
                      history up to date. Used by generators/daily_update.py.
             None  -> take the value from globals.PORTFOLIO_READ_ONLY.
         """
-        self.read_only = (
-            PORTFOLIO_READ_ONLY if read_only is None else read_only)
+        self.read_only = self._resolve_read_only(read_only)
 
         if self.read_only:
             # The single reason this mode exists: in write mode a stale table

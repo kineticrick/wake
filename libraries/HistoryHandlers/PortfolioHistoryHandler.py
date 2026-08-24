@@ -26,6 +26,11 @@ class PortfolioHistoryHandler(BaseHistoryHandler):
         (Date, value)
         """
         self.assets_history_df = assets_history_df
+        # Resolve read_only up front (same rule BaseHistoryHandler.__init__
+        # uses) so set_history()'s nested AssetHistoryHandler construction
+        # below can forward our actual mode instead of independently falling
+        # back to the global.
+        self.read_only = self._resolve_read_only(read_only)
         super().__init__(read_only=read_only)
 
     def set_history(self, start_date: str=None, overwrite: bool=False) -> pd.DataFrame:
@@ -45,7 +50,7 @@ class PortfolioHistoryHandler(BaseHistoryHandler):
         if self.assets_history_df is None:
             # Initialize asset_history_handler with all symbols, to ensure that full
             # portfolio history can be derived + up-to-date
-            asset_history_handler = AssetHistoryHandler()
+            asset_history_handler = AssetHistoryHandler(read_only=self.read_only)
 
             # Get asset history from DB into dataframe
             self.assets_history_df = asset_history_handler.history_df
