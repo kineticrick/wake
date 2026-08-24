@@ -22,7 +22,9 @@ from libraries.HistoryHandlers import PortfolioHistoryHandler
 from libraries.HistoryHandlers import SectorHistoryHandler
 from libraries.HistoryHandlers import AccountTypeHistoryHandler
 from libraries.HistoryHandlers import GeographyHistoryHandler
-from libraries.db.history_meta import compute_staleness, last_successful_run
+from libraries.db.history_meta import (compute_staleness, last_successful_run,
+                                       latest_price_snapshot,
+                                       compute_price_staleness)
 
 class DashboardHandler:
     def __init__(self) -> None:
@@ -115,11 +117,47 @@ class DashboardHandler:
         ####### DATA FRESHNESS #######
         # Read-only mode never repairs stale data, so the dashboard reports it
         # instead. A missing/failed run reads as stale.
+        # These snapshot the freshness at construction time -- DASH_HANDLER is
+        # built once at process start (see globals.py), so a value read here
+        # would go stale itself the moment the updater fails on some later
+        # day. get_freshness() below is re-run on every page load instead;
+        # these two attributes are kept for any other introspection that
+        # wants the as-of-startup value.
+        freshness = self.get_freshness()
+        self.data_as_of = freshness['data_as_of']
+        self.is_stale = freshness['is_stale']
+
+    def get_freshness(self) -> dict:
+        """
+        Re-query freshness straight from the DB. Deliberately NOT cached on
+        self -- portfolio_dashboard.py calls this on every page load (via a
+        callable app.layout) so a server that has been running for days still
+        reports an updater failure without needing a restart. Each call is
+        one indexed SELECT against history_meta plus one against
+        current_prices.
+
+        Returns:
+            data_as_of (date|None), is_stale (bool) -- daily_update.py history
+            price_fetched_at (datetime|None), is_price_stale (bool) -- price_snapshot.py
+        """
         try:
-            self.data_as_of, self._table_dates = last_successful_run()
-        except Exception:                          # noqa: BLE001 - never block startup
-            self.data_as_of, self._table_dates = None, {}
-        self.is_stale = compute_staleness(self.data_as_of)
+            data_as_of, _table_dates = last_successful_run()
+        except Exception:                          # noqa: BLE001 - never block a page load
+            data_as_of = None
+        is_stale = compute_staleness(data_as_of)
+
+        try:
+            price_fetched_at = latest_price_snapshot()
+        except Exception:                          # noqa: BLE001 - never block a page load
+            price_fetched_at = None
+        is_price_stale = compute_price_staleness(price_fetched_at)
+
+        return {
+            'data_as_of': data_as_of,
+            'is_stale': is_stale,
+            'price_fetched_at': price_fetched_at,
+            'is_price_stale': is_price_stale,
+        }
 
     def _load_hypotheticals(self):
         """Load hypothetical history data on first access."""

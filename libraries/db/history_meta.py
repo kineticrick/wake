@@ -21,7 +21,9 @@ from libraries.db.sql import (create_history_meta_table_sql,
                               insert_history_meta_run_sql,
                               finish_history_meta_run_sql,
                               fail_history_meta_run_sql,
-                              read_last_successful_run_query)
+                              read_last_successful_run_query,
+                              read_current_prices_freshness_query)
+from libraries.globals import PRICE_SNAPSHOT_STALE_HOURS
 
 HISTORY_TABLES = [
     'assets_history',
@@ -111,3 +113,32 @@ def last_successful_run():
 
     dates = [datetime.date.fromisoformat(v) for v in tables.values() if v]
     return (min(dates) if dates else None), tables
+
+
+def latest_price_snapshot():
+    """
+    Newest current_prices.fetched_at, or None if the snapshot table is empty
+    (price_snapshot.py has never run) or doesn't exist yet.
+    """
+    with MysqlDB(dbcfg) as db:
+        db.execute(read_current_prices_freshness_query)
+        row = db.fetchone()
+    return row[0] if row else None
+
+
+def compute_price_staleness(fetched_at, now=None) -> bool:
+    """
+    True when the newest price snapshot is older than
+    globals.PRICE_SNAPSHOT_STALE_HOURS (see that constant for why a plain
+    hour count is the right check here, unlike compute_staleness's
+    business-day logic).
+
+    fetched_at: datetime.datetime | None -- None (no snapshot yet) is always stale.
+    now:        datetime.datetime        -- injectable so tests never depend on the clock.
+    """
+    if fetched_at is None:
+        return True
+    if now is None:
+        now = datetime.datetime.now()
+    age = now - fetched_at
+    return age > datetime.timedelta(hours=PRICE_SNAPSHOT_STALE_HOURS)

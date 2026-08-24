@@ -422,6 +422,12 @@ replace_current_price_sql = \
 read_current_prices_query = "SELECT symbol, price FROM current_prices"
 read_current_prices_columns = ['Symbol', 'Current Price']
 
+# Newest snapshot timestamp, for the staleness banner -- a dead
+# price_snapshot.py timer is otherwise invisible (the history_meta banner
+# only tracks daily_update.py) while Current Value/% Total Portfolio/Lifetime
+# Return keep computing from an ever-older "Current Price".
+read_current_prices_freshness_query = "SELECT MAX(fetched_at) FROM current_prices"
+
 # Fallback for the read-only tier when a symbol has no snapshot yet (first
 # deploy, or a symbol bought since the last snapshot run): its most recent
 # closing price from assets_history.

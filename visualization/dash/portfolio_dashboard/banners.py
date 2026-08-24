@@ -11,22 +11,41 @@ build_staleness_banner() needs.
 import dash_mantine_components as dmc
 
 
-def build_staleness_banner(data_as_of, is_stale):
+def build_staleness_banner(data_as_of, is_stale, price_fetched_at=None,
+                           is_price_stale=False):
     """
-    Yellow banner naming the data's as-of date when the updater is behind.
+    Yellow banner naming the data's as-of date when the updater is behind,
+    and/or the price-snapshot age when that timer is behind.
 
-    Returns None when the data is fresh, so the caller can drop it from the
-    layout entirely.
+    price_fetched_at/is_price_stale are optional (default: not stale) so
+    existing history-only callers keep working unchanged.
+
+    Returns None when everything is fresh, so the caller can drop the banner
+    from the layout entirely.
     """
-    if not is_stale:
+    lines = []
+
+    if is_stale:
+        if data_as_of is None:
+            lines.append("No portfolio history found. Run "
+                         "`python generators/daily_update.py` to populate it.")
+        else:
+            lines.append(f"Data as of {data_as_of}. The daily updater has "
+                         f"not run since then — run "
+                         f"`python generators/daily_update.py` to refresh.")
+
+    if is_price_stale:
+        if price_fetched_at is None:
+            lines.append("No current-price snapshot found. Run "
+                         "`python generators/price_snapshot.py` to populate "
+                         "it.")
+        else:
+            lines.append(f"Current prices as of {price_fetched_at}. The "
+                         f"price-snapshot job has not run since then — run "
+                         f"`python generators/price_snapshot.py` to refresh.")
+
+    if not lines:
         return None
 
-    if data_as_of is None:
-        message = ("No portfolio history found. Run "
-                   "`python generators/daily_update.py` to populate it.")
-    else:
-        message = (f"Data as of {data_as_of}. The daily updater has not run "
-                   f"since then — run `python generators/daily_update.py` "
-                   f"to refresh.")
-
-    return dmc.Alert(message, color="yellow", variant="filled", mb="xs")
+    return dmc.Alert(" ".join(lines), color="yellow", variant="filled",
+                     mb="xs")

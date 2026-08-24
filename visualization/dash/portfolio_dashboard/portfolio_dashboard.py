@@ -76,25 +76,46 @@ _tabs = dmc.Tabs(
     ],
 )
 
-_banners = []
-
+# Static across requests -- no DB call, so it's computed once at import time
+# rather than inside _build_layout() below.
+_demo_banners = []
 if os.environ.get('PORTFOLIO_DEMO_MODE') == '1':
-    _banners.append(dmc.Alert(
+    _demo_banners.append(dmc.Alert(
         "DEMO MODE — All data is synthetic. No real financial information is displayed.",
         color="orange", variant="filled", mb="xs",
     ))
 
-_staleness_banner = build_staleness_banner(
-    DASH_HANDLER.data_as_of, DASH_HANDLER.is_stale)
-if _staleness_banner is not None:
-    _banners.append(_staleness_banner)
 
-if _banners:
-    _content = dmc.Stack(_banners + [_tabs], gap=0)
-else:
-    _content = _tabs
+def _build_layout():
+    """
+    Rebuilt on every page load (app.layout is this function, not a static
+    value) so a staleness banner can actually appear without a server
+    restart. DASH_HANDLER is built once at process start (see globals.py),
+    so DASH_HANDLER.data_as_of/is_stale are frozen at that moment -- if the
+    updater then fails for days, a static layout would keep serving a "data
+    is fresh" banner state forever. get_freshness() re-queries history_meta
+    and current_prices fresh on each call (two indexed SELECTs; negligible
+    next to a Dash page render) so a long-running process still reflects an
+    updater outage.
 
-app.layout = dmc.MantineProvider(_content)
+    _tabs is reused as-is (built once at import, holds no DB-derived state of
+    its own -- each tab factory reads from DASH_HANDLER's already-loaded
+    frames), so this stays cheap: no DB work beyond the freshness lookup.
+    """
+    banners = list(_demo_banners)
+
+    freshness = DASH_HANDLER.get_freshness()
+    staleness_banner = build_staleness_banner(
+        freshness['data_as_of'], freshness['is_stale'],
+        freshness['price_fetched_at'], freshness['is_price_stale'])
+    if staleness_banner is not None:
+        banners.append(staleness_banner)
+
+    content = dmc.Stack(banners + [_tabs], gap=0) if banners else _tabs
+    return dmc.MantineProvider(content)
+
+
+app.layout = _build_layout
 
 print(f'Portfolio Dashboard loaded in {time.perf_counter() - enter} seconds')
 

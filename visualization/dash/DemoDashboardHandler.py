@@ -393,6 +393,23 @@ class DemoDashboardHandler(DashboardHandler):
 
         print("✓ Demo data generation complete")
 
+    def get_freshness(self) -> dict:
+        """
+        Demo data is generated fresh in memory on every run (no DB, no
+        yfinance), so it is never stale -- override rather than inherit the
+        parent's DB-backed lookup, which would hit a history_meta /
+        current_prices table that demo mode never populates and report
+        (incorrectly) stale. Recomputes `data_as_of` to "today" on every call
+        so a long-running demo process still reports itself as fresh, matching
+        the "generated fresh on every run" contract above.
+        """
+        return {
+            'data_as_of': datetime.date.today(),
+            'is_stale': False,
+            'price_fetched_at': None,
+            'is_price_stale': False,
+        }
+
     # ------------------------------------------------------------------
     # Lazy-load overrides
     # ------------------------------------------------------------------
