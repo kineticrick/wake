@@ -381,3 +381,28 @@ history_table_indexes = {
     'account_types_history': [create_index_account_types_history_type_sql],
     'geography_history': [create_index_geography_history_geo_sql],
 }
+# history_meta - records each daily_update.py run so the read-only web tier
+# can report freshness without recomputing MAX(date) across seven tables.
+create_history_meta_table_sql = \
+    ("CREATE TABLE IF NOT EXISTS history_meta ("
+     "id INT AUTO_INCREMENT PRIMARY KEY, "
+     "run_started DATETIME NOT NULL, "
+     "run_finished DATETIME NULL, "
+     "status ENUM('running','success','failed') NOT NULL, "
+     "tables_json JSON NULL, "
+     "error TEXT NULL)")
+
+insert_history_meta_run_sql = \
+    ("INSERT INTO history_meta (run_started, status) VALUES (%s, 'running')")
+
+finish_history_meta_run_sql = \
+    ("UPDATE history_meta SET run_finished = %s, status = 'success', "
+     "tables_json = %s WHERE id = %s")
+
+fail_history_meta_run_sql = \
+    ("UPDATE history_meta SET run_finished = %s, status = 'failed', "
+     "error = %s WHERE id = %s")
+
+read_last_successful_run_query = \
+    ("SELECT run_finished, tables_json FROM history_meta "
+     "WHERE status = 'success' ORDER BY run_finished DESC LIMIT 1")
