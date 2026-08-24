@@ -230,7 +230,23 @@ def read_current_prices_from_db(tickers: list) -> pd.DataFrame:
                                 read_latest_closing_prices_columns,
                                 dbcfg, cached=False)
         closes_df = closes_df[closes_df['Symbol'].isin(missing)]
+        # Defense in depth: read_latest_closing_prices_query already
+        # collapses assets_history's (date, symbol, account_type) rows to
+        # one per symbol via GROUP BY, but a symbol held across multiple
+        # account types would otherwise come back duplicated here and
+        # double its Current Value after the merge in
+        # get_portfolio_current_value() -- dedupe defensively too.
+        closes_df = closes_df.drop_duplicates(subset='Symbol', keep='first')
         prices_df = pd.concat([prices_df, closes_df], ignore_index=True)
+
+        # Neither the snapshot nor assets_history has a price for these --
+        # they're silently dropped from the returned frame. That doesn't NaN
+        # the portfolio total (pandas .sum() skips NaN by default), but it
+        # DOES understate it with no visible sign, so surface it loudly here.
+        still_missing = missing - set(closes_df['Symbol'])
+        if still_missing:
+            print(f"WARNING: No current price or historical close found for "
+                 f"{sorted(still_missing)}; excluded from portfolio value.")
 
     return prices_df.reset_index(drop=True)
 

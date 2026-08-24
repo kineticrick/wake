@@ -425,9 +425,17 @@ read_current_prices_columns = ['Symbol', 'Current Price']
 # Fallback for the read-only tier when a symbol has no snapshot yet (first
 # deploy, or a symbol bought since the last snapshot run): its most recent
 # closing price from assets_history.
+#
+# assets_history's PK is (date, symbol, account_type): a symbol held across
+# multiple account types has one row per account on its latest date, so this
+# must collapse those into a single row per symbol via GROUP BY -- otherwise
+# a multi-account symbol comes back duplicated and doubles its Current Value
+# after the merge in get_portfolio_current_value().
 read_latest_closing_prices_query = \
-    ("SELECT a.symbol, a.closing_price FROM assets_history a "
+    ("SELECT a.symbol, MAX(a.closing_price) AS closing_price "
+     "FROM assets_history a "
      "INNER JOIN (SELECT symbol, MAX(date) AS max_date "
      "            FROM assets_history GROUP BY symbol) m "
-     "  ON a.symbol = m.symbol AND a.date = m.max_date")
+     "  ON a.symbol = m.symbol AND a.date = m.max_date "
+     "GROUP BY a.symbol")
 read_latest_closing_prices_columns = ['Symbol', 'Current Price']

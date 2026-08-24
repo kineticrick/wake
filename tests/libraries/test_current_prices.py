@@ -1,9 +1,12 @@
+import contextlib
+import io
 import unittest
 from unittest import mock
 
 import pandas as pd
 
 import libraries.yfinance_helpers.yfinancelib as yfl
+from libraries.db.sql import read_latest_closing_prices_query
 
 
 class TestGetCurrentPriceReadOnly(unittest.TestCase):
@@ -76,6 +79,67 @@ class TestSnapshotFallbackToLastClose(unittest.TestCase):
 
         self.assertEqual(len(out), 1)
         self.assertEqual(out.iloc[0]['Current Price'], 148.0)
+
+    def test_multi_account_symbol_in_fallback_is_deduped(self):
+        """
+        CRITICAL 1 regression: assets_history's PK is (date, symbol,
+        account_type), so a symbol held across two account types has two
+        rows on its latest date. Even if the fallback query's GROUP BY were
+        ever weakened, read_current_prices_from_db must not surface two
+        Current Price rows for one symbol -- that fans out into a doubled
+        Current Value after the merge in get_portfolio_current_value().
+        """
+        snapshot = pd.DataFrame(columns=['Symbol', 'Current Price'])
+        # Simulates a symbol held across two account types leaking through
+        # as two rows -- exactly what the live DB showed for QQQ/VOO before
+        # the query's GROUP BY a.symbol was added.
+        closes = pd.DataFrame([
+            {'Symbol': 'QQQ', 'Current Price': 500.0},
+            {'Symbol': 'QQQ', 'Current Price': 500.0},
+        ])
+
+        def fake_mysql_to_df(query, columns, cfg, cached=False, verbose=False):
+            return snapshot.copy() if 'current_prices' in query else closes.copy()
+
+        with mock.patch.object(yfl, 'mysql_to_df', side_effect=fake_mysql_to_df):
+            out = yfl.read_current_prices_from_db(['QQQ'])
+
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out.iloc[0]['Current Price'], 500.0)
+
+    def test_symbol_missing_from_both_tables_is_logged_not_silent(self):
+        """
+        IMPORTANT 3 regression: a symbol absent from both current_prices and
+        assets_history must not vanish without a trace -- it silently
+        understates the portfolio total (pandas .sum() skips NaN), so the
+        drop has to be visible somewhere.
+        """
+        snapshot = pd.DataFrame(columns=['Symbol', 'Current Price'])
+        closes = pd.DataFrame(columns=['Symbol', 'Current Price'])
+
+        def fake_mysql_to_df(query, columns, cfg, cached=False, verbose=False):
+            return snapshot.copy() if 'current_prices' in query else closes.copy()
+
+        buf = io.StringIO()
+        with mock.patch.object(yfl, 'mysql_to_df', side_effect=fake_mysql_to_df), \
+             contextlib.redirect_stdout(buf):
+            out = yfl.read_current_prices_from_db(['GHOST'])
+
+        self.assertEqual(len(out), 0)
+        self.assertIn('GHOST', buf.getvalue())
+        self.assertIn('WARNING', buf.getvalue())
+
+
+class TestFallbackQueryDedupesBySymbol(unittest.TestCase):
+    """
+    CRITICAL 1: the source-of-truth fix is in the SQL itself (verified live
+    against assets_history, see task-5-report.md). This pins the query text
+    so a future edit can't silently drop the GROUP BY and reintroduce the
+    per-account_type duplicate rows.
+    """
+
+    def test_query_groups_by_symbol(self):
+        self.assertIn('GROUP BY a.symbol', read_latest_closing_prices_query)
 
 
 if __name__ == '__main__':

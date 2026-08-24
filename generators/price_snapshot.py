@@ -22,12 +22,37 @@ import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
+import pandas as pd
+
 from libraries.globals import PORTFOLIO_READ_ONLY
 from libraries.db import dbcfg, MysqlDB
 from libraries.db.sql import (create_current_prices_table_sql,
                               replace_current_price_sql)
 from libraries.helpers import get_portfolio_summary
 from libraries.yfinance_helpers import get_current_price
+
+
+def _build_snapshot_values(prices_df: pd.DataFrame,
+                           fetched_at: datetime.datetime,
+                           logger: logging.Logger) -> list:
+    """
+    Convert a Symbol/Current Price frame into REPLACE INTO value tuples.
+
+    Drops any row with a null price. A missing yfinance quote (delisted or
+    halted ticker) comes back as NaN in a float column, NOT None -- and
+    `nan is not None` is True, so an `is not None` check silently lets NaN
+    through to the DB write, which then fails on the whole batch. Use
+    pd.notna() instead, which is NaN-aware.
+    """
+    valid_mask = prices_df['Current Price'].apply(pd.notna)
+    skipped = sorted(set(prices_df.loc[~valid_mask, 'Symbol']))
+    if skipped:
+        logger.warning("Skipping %d symbol(s) with a null price: %s",
+                       len(skipped), skipped)
+
+    valid_df = prices_df.loc[valid_mask]
+    return [(row['Symbol'], float(row['Current Price']), fetched_at)
+            for _, row in valid_df.iterrows()]
 
 
 def main() -> int:
@@ -60,12 +85,19 @@ def main() -> int:
         return 1
 
     fetched_at = datetime.datetime.now()
-    values = [(row['Symbol'], float(row['Current Price']), fetched_at)
-              for _, row in prices_df.iterrows()
-              if row['Current Price'] is not None]
+    values = _build_snapshot_values(prices_df, fetched_at, logger)
 
-    with MysqlDB(dbcfg) as db:
-        db.cursor.executemany(replace_current_price_sql, values)
+    if not values:
+        logger.warning("No valid prices to write; keeping previous snapshot")
+        return 1
+
+    try:
+        with MysqlDB(dbcfg) as db:
+            db.cursor.executemany(replace_current_price_sql, values)
+    except Exception:                              # noqa: BLE001 - job boundary
+        logger.exception("Writing price snapshot failed; keeping previous "
+                         "snapshot")
+        return 1
 
     logger.info("Wrote %d prices", len(values))
     return 0
