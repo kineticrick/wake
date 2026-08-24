@@ -264,11 +264,11 @@ def dispatch(handler, name, arguments):
         return fn(handler, **arguments)
     except ReadOnlyModeError:
         # get_filtered_dimension_history recomputes from transactions +
-        # prices (the stored dimension tables aren't account-filtered), which
+        # prices (the stored dimension tables aren't filtered), which
         # needs a live yfinance fetch that read-only mode refuses to make.
         # Fail soft with a message the model can relay, rather than letting
         # the generic handler below turn it into a raw exception string.
-        return ("Filtered breakdowns by account aren't available in "
+        return ("Filtered dimension breakdowns aren't available in "
                 "read-only mode; ask about the whole portfolio instead."), None
     except Exception as exc:  # surfaced back to the model as a tool result
         return f"Error running {name}: {exc}", None

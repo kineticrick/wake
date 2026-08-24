@@ -205,7 +205,9 @@ mode to use when hosting. See `deploy/README.md`.
 **Note:** "no network calls" here means no *market-data* calls (yfinance).
 The Chat tab makes a separate, deliberate call to the Anthropic API
 (`libraries/chat/provider.py`) on every message send — that's by design and
-unaffected by `PORTFOLIO_READ_ONLY`.
+unaffected by `PORTFOLIO_READ_ONLY`. In read-only mode, Chat cannot answer
+filtered dimension-breakdown questions (e.g., "returns by sector in my retirement account");
+unfiltered breakdowns and all other tools work normally.
 
 ---
 

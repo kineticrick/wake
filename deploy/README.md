@@ -43,20 +43,24 @@ python generators/daily_update.py --verbose
 ### The `summary` table is NOT refreshed by `daily_update.py`
 
 `daily_update.py` brings every `*_history` table up to date, but it deliberately does
-not run `generators/summary_table_generator.py` — that script takes a positional CSV
-argument and a mutually-exclusive action flag, so it isn't runnable unattended. The
-`summary` table (current holdings snapshot) is refreshed only when you manually re-run
-the importer:
+not run `generators/summary_table_generator.py` — that script requires a position
+snapshot CSV file as a positional argument and a mutually-exclusive action flag, so
+it isn't runnable unattended. The `summary` table (current holdings snapshot) is
+refreshed only when you manually run the summary generator with a position snapshot:
 
 ```bash
-python generators/importer.py
+python generators/summary_table_generator.py <position_summary_csv> --write-db
 ```
+
+where `<position_summary_csv>` is a CSV file from your brokerage containing current
+holdings (typically placed in `files/position_summaries/`).
 
 **Consequence:** `generators/price_snapshot.py` derives the list of symbols it fetches
 from `summary` (via `get_portfolio_summary()`). If you buy a new symbol, it will not
-appear in `summary` until the importer is re-run — and so gets no `current_prices`
-snapshot row, and no current-value figure in the dashboard, until then. Re-run
-`generators/importer.py` after any new purchase to pick it up.
+appear in `summary` until `summary_table_generator.py` is re-run with an updated
+position snapshot — and so gets no `current_prices` snapshot row, and no current-value
+figure in the dashboard, until then. Run the command above with an updated position
+summary after any new purchase to pick it up.
 
 ## Running the web tier read-only
 
@@ -65,7 +69,9 @@ PORTFOLIO_READ_ONLY=1 python visualization/dash/portfolio_dashboard/portfolio_da
 ```
 
 If the updater has not run, the dashboard serves the last good data and shows a
-banner naming the as-of date. It never blocks to fetch prices itself.
+banner naming the as-of date. It never blocks to fetch prices itself. In read-only mode,
+the Chat tab cannot answer filtered dimension-breakdown questions; unfiltered questions
+and all other functionality work normally.
 
 **Note:** paths in the unit files are absolute and assume the repo lives at
 `/home/kineticrick/code/python/wake`. Update them if you deploy elsewhere.
