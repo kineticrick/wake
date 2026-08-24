@@ -9,7 +9,7 @@ import math
 import pandas as pd
 import datetime
 
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from libraries.db import dbcfg
 from libraries.pandas_helpers import print_full, mysql_to_df
 from libraries.db.sql import (master_log_buys_query,
@@ -27,9 +27,9 @@ from libraries.db.sql import (master_log_buys_query,
                               read_summary_table_query, 
                               read_summary_table_columns)
 from libraries.yfinance_helpers import get_historical_prices, get_current_price
-from libraries.globals import (NON_QUANTITY_ASSET_EVENTS, ASSET_EVENTS, 
-                            MASTER_LOG_COLUMNS, CADENCE_MAP, 
-                            ACCOUNT_TYPES)
+from libraries.globals import (NON_QUANTITY_ASSET_EVENTS, ASSET_EVENTS,
+                            MASTER_LOG_COLUMNS, CADENCE_MAP,
+                            ACCOUNT_TYPES, AGGREGATION_CACHE_MAX_ENTRIES)
 from pandas.tseries.offsets import BDay
 from pandas.tseries.frequencies import to_offset
 
@@ -541,10 +541,9 @@ def aggregate_assets_history_by_symbol(df: pd.DataFrame) -> pd.DataFrame:
         out[['CostBasis', 'ClosingPrice', 'Value', 'PercentReturn']].round(2)
     return out
 
-# Module-level cache for the expensive expanded_df computation in gen_aggregated_historical_value.
-# Key: (tuple(symbols), cadence, start_date, account_type) -> expanded DataFrame with asset info merged.
-# This means when 4 dimension handlers call sequentially, only the first does the expensive work.
-_aggregation_cache = {}
+# LRU-bounded. Previously an unbounded dict: in a long-running hosted process
+# with varying filter parameters it grew without limit.
+_aggregation_cache = OrderedDict()
 
 def gen_aggregated_historical_value(dimension: str,
                                     symbols: list=[],
@@ -570,7 +569,9 @@ def gen_aggregated_historical_value(dimension: str,
 
     # Check cache for the expensive expanded_df (shared across dimension calls)
     cache_key = (tuple(symbols), cadence, str(start_date), account_type)
-    if cache_key not in _aggregation_cache:
+    if cache_key in _aggregation_cache:
+        _aggregation_cache.move_to_end(cache_key)
+    else:
         # Get all assets' historical values
         assets_history_df = gen_assets_historical_value(symbols=symbols,
                                                         cadence=cadence,
@@ -579,6 +580,8 @@ def gen_aggregated_historical_value(dimension: str,
                                                         account_type=account_type)
         # Add in Sector, AssetType, etc columns
         _aggregation_cache[cache_key] = add_asset_info(assets_history_df, truncate=False)
+        while len(_aggregation_cache) > AGGREGATION_CACHE_MAX_ENTRIES:
+            _aggregation_cache.popitem(last=False)
 
     expanded_df = _aggregation_cache[cache_key]
 

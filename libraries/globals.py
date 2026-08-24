@@ -56,6 +56,10 @@ MYSQL_CACHE_TTL = 60*60*4  # 4 hours (was 1 hour) - balance between freshness an
 # docs/superpowers/specs/2026-08-24-read-only-web-tier-design.md
 PORTFOLIO_READ_ONLY = os.environ.get('PORTFOLIO_READ_ONLY') == '1'
 
+# Upper bound on libraries.helpers._aggregation_cache. Each entry is a fully
+# expanded per-asset history frame, so this trades memory for recompute.
+AGGREGATION_CACHE_MAX_ENTRIES = 8
+
 ### Generators ###
 
 ROOT_DIR = "/home/kineticrick/code/python/wake"
