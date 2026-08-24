@@ -67,11 +67,22 @@ long-running hosted process with varying filter parameters it grows without limi
 Split the system into a **write tier** that runs on a schedule and a **read-only web
 tier** that serves the dashboard.
 
-The web tier makes **zero outbound network calls and zero database writes**. It can run
-under a read-only MySQL grant. This is the property that makes public hosting (goal 3)
-tractable, and it is the reason to prefer this over hiding the latency behind a
-background callback: the stall is removed rather than concealed, and the security
-posture improves as a side effect.
+The web tier makes **zero outbound market-data network calls and zero database
+writes**. It can run under a read-only MySQL grant. This is the property that makes
+public hosting (goal 3) tractable, and it is the reason to prefer this over hiding the
+latency behind a background callback: the stall is removed rather than concealed, and
+the security posture improves as a side effect.
+
+> **Post-implementation correction (final whole-branch review):** the original "zero
+> outbound network calls" framing was inaccurate. The Chat tab (a later addition to this
+> branch) makes a deliberate, declared call to the Anthropic API
+> (`libraries/chat/provider.py`) on every message send — that is by design and
+> orthogonal to the guarantee this spec describes, which is specifically about
+> market-data (yfinance) calls and database writes. The review also found that
+> `get_historical_prices` (the price-fetch path used by the chat layer's
+> account-filtered breakdowns) was not gated by `PORTFOLIO_READ_ONLY` at all — fixed by
+> gating it directly and having the chat tool dispatcher degrade gracefully instead of
+> performing a live multi-minute fetch inside a request.
 
 **Scope: performance and the read/write split only.** Authentication, TLS, secrets
 management, and deployment are goal 3 and get their own spec. Responsive layout and
@@ -95,6 +106,13 @@ Single entry point for all derived-data computation. Runs, in dependency order:
 All in write mode. The job is idempotent — handlers already use `INSERT IGNORE` /
 `REPLACE INTO` keyed on date, so re-running is safe and a partial failure can be
 recovered by re-running.
+
+> **Post-implementation correction:** step 5 as implemented (`generators/daily_update.py`)
+> does NOT actually run `summary_table_generator` — that script requires a positional
+> CSV argument and a mutually-exclusive action flag, so it isn't no-arg runnable from an
+> unattended scheduled job. This is correct behavior, not a bug: `summary` refreshes only
+> on manual `importer.py` runs. See `deploy/README.md` for the operational consequence
+> (a newly bought symbol gets no price-snapshot row until the importer is re-run).
 
 Dead tickers (`$EA: possibly delisted`) are logged and skipped, never fatal. Latency
 does not matter in a nightly job, so no blacklist enforcement is added; the existing
@@ -201,7 +219,8 @@ Target: **under 500 KB per tab**, from 6.42 MB / 1.53 MB / 1.00 MB today.
                        │ reads only
                        ▼
         Dash web tier (PORTFOLIO_READ_ONLY=1)
-        no egress · no writes · read-only grant
+        no market-data egress · no writes · read-only grant
+        (Chat tab is a declared exception: calls api.anthropic.com)
 ```
 
 ## Error handling
@@ -212,15 +231,18 @@ Target: **under 500 KB per tab**, from 6.42 MB / 1.53 MB / 1.00 MB today.
 | Individual ticker delisted | Logged, skipped, run continues and still succeeds. |
 | Job never runs (machine asleep) | `Persistent=true` catches up on boot; banner shows the gap meanwhile. |
 | `history_meta` empty (first deploy) | Treated as stale; banner instructs running the updater. |
-| Price snapshot stale | `current_prices.fetched_at` surfaces age; portfolio value falls back to the last close. |
+| Price snapshot stale | `current_prices.fetched_at` surfaces age via the same staleness banner as `history_meta` (threshold: `PRICE_SNAPSHOT_STALE_HOURS`, `libraries/globals.py`); portfolio value falls back to the last close for any symbol missing a snapshot row (fixed in the final review pass — this row was aspirational until then). |
 | Web tier attempts a write | Fails at the MySQL grant. This is intended — it makes the read-only contract enforced, not merely conventional. |
 
 ## Testing
 
-- **Read-only mode makes no network calls.** Monkeypatch `yfinance_helpers` with a fake
-  that raises on any call; construct every handler and `DashboardHandler` with
-  `PORTFOLIO_READ_ONLY=1`; assert no invocation. This is the regression test that keeps
-  the stall from returning.
+- **Read-only mode makes no market-data network calls.** Monkeypatch `yfinance_helpers`
+  with a fake that raises on any call; construct every handler and `DashboardHandler`
+  with `PORTFOLIO_READ_ONLY=1`; assert no invocation. `get_historical_prices` itself is
+  gated the same way (raises `ReadOnlyModeError` immediately) since it's reachable
+  outside the handler seam via the chat layer's account-filtered breakdowns. This is the
+  regression test that keeps the stall from returning. (The Chat tab's Anthropic API call
+  is out of scope for this guarantee — see the network-calls correction above.)
 - **Vectorization equivalence.** Assert the new `aggregate_assets_history_by_symbol`
   equals the current implementation's output on a fixture with multi-account symbols,
   zero cost basis, and exited assets.

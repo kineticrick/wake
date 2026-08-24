@@ -82,6 +82,11 @@ In read-only mode the app never calls yfinance and never writes to the
 database — history is kept current by the scheduled jobs above. This is the
 mode to use when hosting. See `deploy/README.md`.
 
+**Note:** "no network calls" means no *market-data* calls specifically. The
+Chat tab still makes a deliberate call to the Anthropic API
+(`libraries/chat/provider.py`) on every message send, unaffected by
+`PORTFOLIO_READ_ONLY` — that's a declared exception to the guarantee, not a gap in it.
+
 ## Architecture
 
 ### Data Flow
