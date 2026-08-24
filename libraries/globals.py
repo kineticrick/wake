@@ -60,6 +60,14 @@ PORTFOLIO_READ_ONLY = os.environ.get('PORTFOLIO_READ_ONLY') == '1'
 # expanded per-asset history frame, so this trades memory for recompute.
 AGGREGATION_CACHE_MAX_ENTRIES = 8
 
+# Chart payload shaping. Beyond this many days back, history is thinned to
+# weekly: a 40k-point trace carries far more points than the ~1500 horizontal
+# pixels a chart actually has, so the difference is invisible.
+DOWNSAMPLE_DAILY_WINDOW_DAYS = 365
+# How many series the Hypotheticals/Assets charts show before the user opts in
+# to more via the existing dropdowns.
+DEFAULT_CHART_SERIES = 10
+
 ### Generators ###
 
 ROOT_DIR = "/home/kineticrick/code/python/wake"

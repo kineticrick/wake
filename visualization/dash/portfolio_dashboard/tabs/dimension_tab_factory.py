@@ -5,6 +5,7 @@ import pandas as pd
 from pandas.tseries.offsets import DateOffset
 
 from libraries.returns import value_weighted_lifetime_return, rebase_to_window_start
+from libraries.downsample import downsample_history
 from visualization.dash.portfolio_dashboard.globals import *
 import dash_mantine_components as dmc
 
@@ -99,6 +100,10 @@ def create_dimension_tab(dimension_name, column_name, summary_df_attr, history_d
             # Rebase each dimension to ITS OWN value at the window start.
             chart_df['y'] = chart_df.groupby(column_name)['TotalValue'].transform(
                 rebase_to_window_start)
+
+        # Thin the payload before serialization. The table above is computed
+        # from the FULL frame, so only the chart is affected.
+        chart_df = downsample_history(chart_df, group_cols=(column_name,))
 
         fig = px.line(
             chart_df,

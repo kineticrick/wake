@@ -3,6 +3,7 @@ import dash_ag_grid as dag
 import plotly.express as px
 import plotly.graph_objs as go
 
+from libraries.downsample import downsample_history, top_n_symbols
 from visualization.dash.portfolio_dashboard.globals import *
 
 import dash_mantine_components as dmc
@@ -50,12 +51,19 @@ def initialize_hypotheticals_tab(active_tab):
     data = _load_hypo_data()
     normalized_hypo_df = data['normalized_hypo_df']
 
+    # The initial view defaults to the biggest movers instead of all 126
+    # series (6.4 MB). The sector/asset dropdowns below bring in the rest.
+    default_symbols = top_n_symbols(normalized_hypo_df)
+    initial_df = normalized_hypo_df[
+        normalized_hypo_df['Symbol'].isin(default_symbols)]
+    initial_df = downsample_history(initial_df, group_cols=('Symbol',))
+
     fig = px.line(
-        normalized_hypo_df,
-        x=normalized_hypo_df['Date'],
-        y=normalized_hypo_df['ClosingPrice % Change'],
-        color=normalized_hypo_df['Symbol'],
-        line_dash=normalized_hypo_df['Sector'],
+        initial_df,
+        x=initial_df['Date'],
+        y=initial_df['ClosingPrice % Change'],
+        color=initial_df['Symbol'],
+        line_dash=initial_df['Sector'],
     )
     fig.update_layout(height=800)
     fig.update_yaxes(ticksuffix="%")
@@ -120,6 +128,8 @@ def update_normalized_hypo_graph(sectors, assets):
         df = normalized_hypo_df
     else:
         df = normalized_hypo_df[normalized_hypo_df['Symbol'].isin(assets)]
+
+    df = downsample_history(df, group_cols=('Symbol',))
 
     normalized_hypo_fig = px.line(
         df,
