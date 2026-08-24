@@ -1,5 +1,3 @@
-import contextlib
-import io
 import unittest
 from unittest import mock
 
@@ -120,14 +118,13 @@ class TestSnapshotFallbackToLastClose(unittest.TestCase):
         def fake_mysql_to_df(query, columns, cfg, cached=False, verbose=False):
             return snapshot.copy() if 'current_prices' in query else closes.copy()
 
-        buf = io.StringIO()
         with mock.patch.object(yfl, 'mysql_to_df', side_effect=fake_mysql_to_df), \
-             contextlib.redirect_stdout(buf):
+             self.assertLogs(yfl.logger, level='WARNING') as log_ctx:
             out = yfl.read_current_prices_from_db(['GHOST'])
 
         self.assertEqual(len(out), 0)
-        self.assertIn('GHOST', buf.getvalue())
-        self.assertIn('WARNING', buf.getvalue())
+        joined = '\n'.join(log_ctx.output)
+        self.assertIn('GHOST', joined)
 
 
 class TestFallbackQueryDedupesBySymbol(unittest.TestCase):

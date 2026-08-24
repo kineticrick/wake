@@ -3,6 +3,7 @@ import unittest
 import plotly.graph_objs as go
 
 from libraries.chat import tools
+from libraries.globals import ReadOnlyModeError
 from tests.libraries.chat.fakes import make_fake_handler
 
 
@@ -209,3 +210,42 @@ class TestChartTools(unittest.TestCase):
         for schema in tools.TOOL_SCHEMAS:
             self.assertIn("description", schema)
             self.assertIn("input_schema", schema)
+
+
+class TestReadOnlyModeGracefulDegradation(unittest.TestCase):
+    """
+    CRITICAL 1: get_filtered_dimension_history recomputes from transactions +
+    live prices, which raises ReadOnlyModeError under PORTFOLIO_READ_ONLY=1
+    (the stored dimension tables aren't account-filtered, so this path can't
+    be served from what's already in the DB). dispatch() must turn that into
+    a friendly, model-relayable message rather than a raw exception string --
+    and, crucially, must never get the chance to run a 65-second live fetch
+    first.
+    """
+
+    def setUp(self):
+        self.h = make_fake_handler()
+
+        def explode(*a, **kw):
+            raise ReadOnlyModeError(
+                "Market-data fetches are disabled in read-only mode.")
+
+        self.h.get_filtered_dimension_history = explode
+
+    def test_get_dimension_breakdown_degrades_gracefully(self):
+        text, fig = tools.dispatch(
+            self.h, "get_dimension_breakdown",
+            {"dimension": "Sector", "filters": {"account_type": "Retirement"}})
+        self.assertIsNone(fig)
+        self.assertNotIn("Error running", text)
+        self.assertNotIn("Traceback", text)
+        self.assertIn("read-only mode", text.lower())
+
+    def test_show_history_line_dimension_degrades_gracefully(self):
+        text, fig = tools.dispatch(
+            self.h, "show_history_line",
+            {"target_type": "dimension", "targets": ["Geography"],
+             "interval": "2y", "filters": {"account_type": "Retirement"}})
+        self.assertIsNone(fig)
+        self.assertNotIn("Error running", text)
+        self.assertIn("read-only mode", text.lower())

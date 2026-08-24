@@ -1,6 +1,7 @@
 import unittest
 from unittest import mock
 
+from libraries.globals import ReadOnlyModeError
 from libraries.yfinance_helpers import yfinancelib
 
 
@@ -40,6 +41,40 @@ class TestGetHistoricalPricesEmptyBatch(unittest.TestCase):
                 interval="daily", cleaned_up=True)
         self.assertIn("Symbol", df.columns)
         self.assertEqual(set(df["Symbol"].unique()), {"AAA"})
+
+
+class TestGetHistoricalPricesReadOnlyGate(unittest.TestCase):
+    """
+    CRITICAL 1: get_historical_prices is the one price-fetch path NOT gated
+    by a history handler's read_only flag -- the chat layer's account-filtered
+    breakdown calls it directly (via gen_assets_historical_value), bypassing
+    BaseHistoryHandler entirely. Under PORTFOLIO_READ_ONLY=1 it must raise
+    immediately, before touching yfinance, rather than performing a
+    multi-ticker live fetch (measured at 65+ seconds for a full portfolio).
+    """
+
+    def test_raises_without_calling_yfinance(self):
+        def explode(*a, **kw):
+            raise AssertionError(
+                "yfinance must not be called when PORTFOLIO_READ_ONLY=1")
+
+        with mock.patch.object(yfinancelib, 'PORTFOLIO_READ_ONLY', True), \
+             mock.patch.object(yfinancelib, '_gen_historical_prices',
+                               side_effect=explode):
+            with self.assertRaises(ReadOnlyModeError):
+                yfinancelib.get_historical_prices(
+                    ['AAPL'], start='2026-01-01', end='2026-01-10',
+                    interval='daily')
+
+    def test_write_mode_is_unaffected(self):
+        good = {"2026-06-12": {"Close": 100.0}, "2026-06-13": {"Close": 101.0}}
+        with mock.patch.object(yfinancelib, 'PORTFOLIO_READ_ONLY', False), \
+             mock.patch.object(yfinancelib, '_gen_historical_prices',
+                               return_value={"AAA": good}):
+            df = yfinancelib.get_historical_prices(
+                ["AAA"], start="2026-06-10", end="2026-06-14",
+                interval="daily", cleaned_up=True)
+        self.assertFalse(df.empty)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import sys
 import os
 
@@ -12,8 +13,11 @@ from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
 from libraries.pandas_helpers import print_full, mysql_to_df
 from libraries.globals import (BUSINESS_CADENCE_MAP, CADENCE_MAP,
-                               SYMBOL_BLACKLIST, PORTFOLIO_READ_ONLY)
+                               SYMBOL_BLACKLIST, PORTFOLIO_READ_ONLY,
+                               ReadOnlyModeError)
 from libraries.db import dbcfg
+
+logger = logging.getLogger(__name__)
 from libraries.db.sql import (read_current_prices_query,
                               read_current_prices_columns,
                               read_latest_closing_prices_query,
@@ -108,7 +112,15 @@ def get_historical_prices(tickers: list, start: str=None,
     # Returns:
     #   prices_df: Date, Open, High, Low, Close, Volume, Symbol 
     #   priced_df(cleaned up): Date, Symbol, ClosingPrice
-    """    
+    """
+    if PORTFOLIO_READ_ONLY:
+        raise ReadOnlyModeError(
+            "Market-data fetches are disabled in read-only mode "
+            "(PORTFOLIO_READ_ONLY=1). This process is not allowed to call "
+            "yfinance. History is refreshed by generators/daily_update.py, "
+            "which runs on a schedule outside the web tier -- run it there "
+            "to bring stored history up to date.")
+
     prices_df = pd.DataFrame()
 
     # Get historical price data for each ticker
@@ -245,8 +257,9 @@ def read_current_prices_from_db(tickers: list) -> pd.DataFrame:
         # DOES understate it with no visible sign, so surface it loudly here.
         still_missing = missing - set(closes_df['Symbol'])
         if still_missing:
-            print(f"WARNING: No current price or historical close found for "
-                 f"{sorted(still_missing)}; excluded from portfolio value.")
+            logger.warning(
+                "No current price or historical close found for %s; "
+                "excluded from portfolio value.", sorted(still_missing))
 
     return prices_df.reset_index(drop=True)
 

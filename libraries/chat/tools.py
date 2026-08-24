@@ -9,6 +9,7 @@ import pandas as pd
 
 from libraries.chat import chart_builders
 from libraries.chat.config import INTERVALS, DIMENSIONS
+from libraries.globals import ReadOnlyModeError
 from libraries.helpers import compute_dimension_breakdown
 
 # Maps a filter key the model uses to the summary-df column name.
@@ -261,6 +262,14 @@ def dispatch(handler, name, arguments):
         return f"Unknown tool: {name}", None
     try:
         return fn(handler, **arguments)
+    except ReadOnlyModeError:
+        # get_filtered_dimension_history recomputes from transactions +
+        # prices (the stored dimension tables aren't account-filtered), which
+        # needs a live yfinance fetch that read-only mode refuses to make.
+        # Fail soft with a message the model can relay, rather than letting
+        # the generic handler below turn it into a raw exception string.
+        return ("Filtered breakdowns by account aren't available in "
+                "read-only mode; ask about the whole portfolio instead."), None
     except Exception as exc:  # surfaced back to the model as a tool result
         return f"Error running {name}: {exc}", None
 

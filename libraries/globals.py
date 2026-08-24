@@ -50,11 +50,41 @@ MYSQL_CACHE_HISTORY_TAG = 'historycaches'
 MYSQL_CACHE_TTL = 60*60*4  # 4 hours (was 1 hour) - balance between freshness and performance
 
 # When true, the process must NEVER write to the database or make outbound
-# network calls. The Dash web tier runs this way so it can be served from a
-# read-only MySQL grant with no internet egress; all history updates happen in
-# generators/daily_update.py instead. See
+# market-data network calls. The Dash web tier runs this way so it can be
+# served from a read-only MySQL grant with no market-data egress; all history
+# updates happen in generators/daily_update.py instead. See
 # docs/superpowers/specs/2026-08-24-read-only-web-tier-design.md
+#
+# NOTE: this does not cover every network call the web tier makes -- the Chat
+# tab deliberately calls the Anthropic API (libraries/chat/provider.py) on
+# every message send. That call is declared, intentional, and unrelated to
+# the yfinance/market-data guarantee this flag enforces.
 PORTFOLIO_READ_ONLY = os.environ.get('PORTFOLIO_READ_ONLY') == '1'
+
+
+class ReadOnlyModeError(RuntimeError):
+    """
+    Raised when code that would fetch live market data (yfinance) runs while
+    PORTFOLIO_READ_ONLY is set. This is the read-only tier's enforcement
+    mechanism for any fetch path that isn't otherwise gated by a history
+    handler's read_only flag -- e.g. the chat layer's on-demand,
+    account-filtered recomputation, which cannot be served from the stored
+    (unfiltered) dimension tables and would otherwise fall through to a live,
+    multi-second-to-minute yfinance fetch inside a request.
+    """
+
+
+# Price-snapshot staleness threshold for the dashboard banner (IMPORTANT 3).
+# generators/price_snapshot.py refreshes current_prices every 15 minutes
+# during market hours, so under normal operation the newest snapshot is never
+# more than ~15-30 minutes old. But the snapshot job does NOT run overnight or
+# on weekends (no market hours), so a naive "must be < N minutes old" check
+# would false-alarm every single morning and every weekend. A plain Friday
+# close (~4pm) to Monday open (~9:30am) gap is already ~65.5 hours; 72 hours
+# (3 days) comfortably covers that ordinary weekend gap without a false
+# alarm, while still catching a snapshot timer that has actually been dead
+# for multiple days (the failure this banner exists to surface).
+PRICE_SNAPSHOT_STALE_HOURS = 72
 
 # Upper bound on libraries.helpers._aggregation_cache. Each entry is a fully
 # expanded per-asset history frame, so this trades memory for recompute.
