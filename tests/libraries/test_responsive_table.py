@@ -49,6 +49,25 @@ class TestBuildMobileCards(unittest.TestCase):
         self.assertEqual(build_mobile_cards(rows, 'Sector',
                                             ['Current Value']), [])
 
+    def test_nan_value_is_skipped_not_rendered_as_string(self):
+        rows = [{'Sector': 'Technology', 'Current Value': float('nan')}]
+        cards = build_mobile_cards(rows, 'Sector', ['Current Value'])
+        self.assertEqual(len(cards), 1)          # card still renders
+        self.assertNotIn('nan', str(cards[0]))   # but NaN leaks not in
+
+    def test_zero_value_is_rendered(self):
+        rows = [{'Sector': 'Technology', 'Current Value': 0}]
+        cards = build_mobile_cards(rows, 'Sector', ['Current Value'])
+        rendered = str(cards[0])
+        self.assertIn('Current Value', rendered)
+        self.assertIn('0', rendered)             # 0 is real data
+
+    def test_empty_string_value_is_rendered(self):
+        rows = [{'Sector': 'Technology', 'Current Value': ''}]
+        cards = build_mobile_cards(rows, 'Sector', ['Current Value'])
+        rendered = str(cards[0])
+        self.assertIn('Current Value', rendered)  # field shows even if value is empty
+
 
 class TestResponsiveTable(unittest.TestCase):
 

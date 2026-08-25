@@ -37,7 +37,11 @@ def build_mobile_cards(row_data, primary_field, mobile_fields):
         lines = []
         for field in mobile_fields:
             value = row.get(field)
-            if value is None:
+            # NaN is not None but renders as the string "nan", which looks like
+            # real data in a card. `value != value` is true only for NaN, and
+            # avoids importing pandas into an otherwise dependency-light module.
+            # Note this deliberately KEEPS 0 and "" -- those are real values.
+            if value is None or value != value:
                 continue
             lines.append(dmc.Group(
                 [
