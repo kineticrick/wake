@@ -68,6 +68,18 @@ class TestDownsampleHistory(unittest.TestCase):
         empty = pd.DataFrame(columns=['Date', 'Symbol', 'Value'])
         self.assertTrue(downsample_history(empty, group_cols=('Symbol',)).empty)
 
+    def test_budget_of_one_still_preserves_both_endpoints(self):
+        # A budget of 1 cannot literally be honored while keeping both
+        # endpoints (that needs at least 2 points), so it must be clamped
+        # rather than silently dropping the first point.
+        out = downsample_history(self.df, group_cols=('Symbol',),
+                                 max_points_per_series=1)
+        for symbol in ('AAA', 'BBB'):
+            original = self.df[self.df['Symbol'] == symbol]
+            kept = out[out['Symbol'] == symbol]
+            self.assertEqual(kept['Date'].min(), original['Date'].min())
+            self.assertEqual(kept['Date'].max(), original['Date'].max())
+
 
 class TestDownsampleHistoryMultiGroupCols(unittest.TestCase):
     """Covers the GAP 1 fix: a chart trace can be identified by MORE than one

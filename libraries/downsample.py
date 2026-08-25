@@ -74,6 +74,11 @@ def downsample_history(df: pd.DataFrame, date_col: str = 'Date',
     if max_points_per_series is None:
         max_points_per_series = CHART_POINT_BUDGET
 
+    # Preserving both endpoints (see _thin_one_series) requires room for at
+    # least two points, so clamp a degenerate budget rather than silently
+    # dropping the first point.
+    max_points_per_series = max(max_points_per_series, 2)
+
     group_cols = list(group_cols)
     if not group_cols:
         return _thin_one_series(
