@@ -90,20 +90,21 @@ PRICE_SNAPSHOT_STALE_HOURS = 72
 # expanded per-asset history frame, so this trades memory for recompute.
 AGGREGATION_CACHE_MAX_ENTRIES = 8
 
-# Chart payload shaping. Beyond this many days back, history is thinned to
-# weekly: a 40k-point trace carries far more points than the ~1500 horizontal
-# pixels a chart actually has, so the difference is invisible.
-DOWNSAMPLE_DAILY_WINDOW_DAYS = 365
+# Target points per chart series. Downsampling thins each series to at most
+# this many points with an even stride, always keeping its first and last.
+#
+# 300 is chosen against the payload ceiling, not by feel. The Assets tab is
+# the binding constraint (34 traces): at 300/series it lands ~430 KB, better
+# than the 455 KB the old 60-day calendar window produced; at 350 it would
+# exceed the 500 KB target. Sectors comes out ~219 KB against today's 220 KB,
+# i.e. visually identical.
+#
+# The point of a budget rather than a calendar window is that it does not
+# drift: the old window grew the Assets payload ~70 KB per year of history.
+CHART_POINT_BUDGET = 300
 # How many series the Hypotheticals/Assets charts show before the user opts in
 # to more via the existing dropdowns.
 DEFAULT_CHART_SERIES = 10
-# The Assets chart renders one trace per held (Symbol, AccountType) pair --
-# ~34 concurrently by default, an order of magnitude more than the dimension
-# tabs' 3-30 traces -- and unlike Hypotheticals it must keep every trace (it
-# IS the "what do I hold" view, not a top-movers view). At that trace count,
-# DOWNSAMPLE_DAILY_WINDOW_DAYS's 1-year daily window still exceeds the 500 KB
-# payload budget, so this chart gets its own, shorter daily window.
-ASSETS_DOWNSAMPLE_WINDOW_DAYS = 60
 
 ### Generators ###
 

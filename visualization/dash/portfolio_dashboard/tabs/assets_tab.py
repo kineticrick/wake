@@ -6,7 +6,6 @@ import pandas as pd
 
 from visualization.dash.portfolio_dashboard.globals import *
 from libraries.downsample import downsample_history
-from libraries.globals import ASSETS_DOWNSAMPLE_WINDOW_DAYS
 from visualization.dash.assets_chart_helpers import prepare_per_account_chart_df
 
 import dash_mantine_components as dmc
@@ -97,14 +96,9 @@ def update_assets_hist_graph(selected_rows, interval):
             return go.Figure().update_layout(
                 title="No data available. Select assets from the table above.")
 
-        # Thin the payload before serialization. A trace is a (Symbol,
-        # AccountType) pair, so group on both -- otherwise one account's
-        # series could borrow another account's endpoints. This chart can
-        # carry ~34 concurrent traces (every holding, all accounts) where the
-        # dimension tabs carry a handful, so it uses a shorter daily window
-        # than the shared default -- see ASSETS_DOWNSAMPLE_WINDOW_DAYS.
-        df = downsample_history(df, group_cols=('Symbol', 'AccountType'),
-                                window_days=ASSETS_DOWNSAMPLE_WINDOW_DAYS)
+        # Thin to the shared point budget. This tab has the most traces (34),
+        # so it is the binding constraint on the 500 KB payload target.
+        df = downsample_history(df, group_cols=('Symbol', 'AccountType'))
 
         # color = ticker (a ticker's accounts share a color),
         # dash  = account (distinguishes Discretionary vs Retirement).

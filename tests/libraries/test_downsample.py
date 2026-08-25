@@ -19,27 +19,32 @@ class TestDownsampleHistory(unittest.TestCase):
                 rows.append({'Date': d, 'Symbol': symbol, 'Value': base + i})
         self.df = pd.DataFrame(rows)
 
-    def test_recent_window_keeps_daily_resolution(self):
+    def test_output_stays_within_the_budget(self):
         out = downsample_history(self.df, group_cols=('Symbol',),
-                                 window_days=365, today=self.today)
-        cutoff = self.today - datetime.timedelta(days=365)
-        recent_in = len(self.df[self.df['Date'] >= cutoff])
-        recent_out = len(out[out['Date'] >= cutoff])
-        self.assertEqual(recent_out, recent_in)
+                                 max_points_per_series=100)
+        for symbol in ('AAA', 'BBB'):
+            kept = out[out['Symbol'] == symbol]
+            self.assertLessEqual(len(kept), 100)
 
-    def test_old_data_is_thinned(self):
+    def test_thinning_is_evenly_spaced_not_front_loaded(self):
+        # A stride-based thin must sample across the whole range. A naive
+        # head(budget) would pass a length check while showing only the
+        # oldest slice of history.
         out = downsample_history(self.df, group_cols=('Symbol',),
-                                 window_days=365, today=self.today)
+                                 max_points_per_series=100)
+        kept = out[out['Symbol'] == 'AAA'].sort_values('Date')
+        original = self.df[self.df['Symbol'] == 'AAA']
+        span_kept = (kept['Date'].max() - kept['Date'].min()).days
+        span_orig = (original['Date'].max() - original['Date'].min()).days
+        self.assertEqual(span_kept, span_orig)
+
+    def test_series_longer_than_budget_is_actually_thinned(self):
+        out = downsample_history(self.df, group_cols=('Symbol',),
+                                 max_points_per_series=100)
         self.assertLess(len(out), len(self.df))
-        # Weekly beyond a year: roughly 1/7th of the old rows survive.
-        cutoff = self.today - datetime.timedelta(days=365)
-        old_in = len(self.df[self.df['Date'] < cutoff])
-        old_out = len(out[out['Date'] < cutoff])
-        self.assertLess(old_out, old_in / 3)
 
     def test_first_and_last_point_per_group_are_preserved(self):
-        out = downsample_history(self.df, group_cols=('Symbol',),
-                                 window_days=365, today=self.today)
+        out = downsample_history(self.df, group_cols=('Symbol',))
         for symbol in ('AAA', 'BBB'):
             original = self.df[self.df['Symbol'] == symbol]
             kept = out[out['Symbol'] == symbol]
@@ -56,7 +61,7 @@ class TestDownsampleHistory(unittest.TestCase):
         recent = self.df[self.df['Date'] >=
                          self.today - datetime.timedelta(days=30)]
         out = downsample_history(recent, group_cols=('Symbol',),
-                                 window_days=365, today=self.today)
+                                 max_points_per_series=1000)
         self.assertEqual(len(out), len(recent))
 
     def test_empty_frame_passes_through(self):
@@ -84,15 +89,13 @@ class TestDownsampleHistoryMultiGroupCols(unittest.TestCase):
         self.df = pd.DataFrame(rows)
 
     def test_trace_count_is_unchanged(self):
-        out = downsample_history(self.df, group_cols=('Symbol', 'AccountType'),
-                                 window_days=365, today=self.today)
+        out = downsample_history(self.df, group_cols=('Symbol', 'AccountType'))
         pairs_in = self.df[['Symbol', 'AccountType']].drop_duplicates()
         pairs_out = out[['Symbol', 'AccountType']].drop_duplicates()
         self.assertEqual(len(pairs_out), len(pairs_in))
 
     def test_endpoints_do_not_cross_accounts(self):
-        out = downsample_history(self.df, group_cols=('Symbol', 'AccountType'),
-                                 window_days=365, today=self.today)
+        out = downsample_history(self.df, group_cols=('Symbol', 'AccountType'))
         for account in ('Discretionary', 'Retirement'):
             original = self.df[self.df['AccountType'] == account]
             kept = out[out['AccountType'] == account]
@@ -106,8 +109,7 @@ class TestDownsampleHistoryMultiGroupCols(unittest.TestCase):
                 original.loc[original['Date'].idxmax(), 'Value'])
 
     def test_old_data_is_thinned_per_account(self):
-        out = downsample_history(self.df, group_cols=('Symbol', 'AccountType'),
-                                 window_days=365, today=self.today)
+        out = downsample_history(self.df, group_cols=('Symbol', 'AccountType'))
         self.assertLess(len(out), len(self.df))
 
 
@@ -140,8 +142,7 @@ class TestDownsampleHistoryNonUniqueIndex(unittest.TestCase):
         df = pd.concat([df_a, df_b])
         self.assertFalse(df.index.is_unique)  # sanity: this IS the trigger
 
-        out = downsample_history(df, group_cols=('Symbol',),
-                                 window_days=365, today=today)
+        out = downsample_history(df, group_cols=('Symbol',))
 
         self.assertEqual(set(out['Symbol']), {'A', 'B'})
 
