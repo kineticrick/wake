@@ -113,5 +113,38 @@ class TestPortfolioTabResponsive(unittest.TestCase):
         self.assertIn('losers-table-cards', card_ids)
 
 
+class TestRemainingTabsDoNotOverflow(unittest.TestCase):
+    """Assets and Hypotheticals get responsive spans only -- no card view.
+    They must not force horizontal scrolling, which fixed spans guarantee."""
+
+    def _assert_all_spans_responsive(self, layout, name):
+        for col in grid_cols(layout):
+            self.assertIsInstance(
+                col.span, dict,
+                f"{name}: span={col.span!r} is fixed at every width")
+            self.assertIn('base', col.span)
+            self.assertIn('md', col.span)
+
+    def test_assets_tab_spans_are_responsive(self):
+        from visualization.dash.portfolio_dashboard.tabs import assets_tab
+        self._assert_all_spans_responsive(assets_tab, 'assets')
+
+    def test_hypotheticals_tab_spans_are_responsive(self):
+        from visualization.dash.portfolio_dashboard.tabs import hypotheticals_tab
+        self._assert_all_spans_responsive(hypotheticals_tab, 'hypotheticals')
+
+    def test_chat_thread_height_is_viewport_relative(self):
+        # Unlike assets_tab/hypotheticals_tab, chat_tab is NOT re-exported in
+        # tabs/__init__.py, so this import yields the submodule -- the
+        # layout Container is its `.chat_tab` attribute.
+        from visualization.dash.portfolio_dashboard.tabs import chat_tab
+        threads = [c for c in walk(chat_tab.chat_tab)
+                   if getattr(c, 'id', None) == 'chat-thread']
+        self.assertEqual(len(threads), 1)
+        style = threads[0].style or {}
+        combined = f"{style.get('minHeight', '')}{style.get('height', '')}"
+        self.assertIn('vh', combined)
+
+
 if __name__ == '__main__':
     unittest.main()

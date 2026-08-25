@@ -120,7 +120,7 @@ chat_tab = dmc.Container(
         # Populated by other tabs later (Level-1 awareness seam). Empty for now.
         dcc.Store(id=VIEW_CONTEXT_STORE_ID, data={}),
         dmc.Title("Ask your portfolio", order=2, mb="md"),
-        html.Div(id="chat-thread", style={"minHeight": "400px",
+        html.Div(id="chat-thread", style={"minHeight": "55vh",
                                           "marginBottom": "0.25rem"}),
         # Instant "Thinking…" line shown while a query is in flight (set
         # client-side, cleared by on_send when the answer arrives).

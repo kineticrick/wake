@@ -146,7 +146,7 @@ assets_tab = dmc.Container(
                     ),
                     shadow="sm", p="md",
                 ),
-                span=12,
+                span={"base": 12, "md": 12},
             ),
         ]),
         dmc.Grid([
@@ -157,7 +157,7 @@ assets_tab = dmc.Container(
                     value=DEFAULT_INTERVAL,
                     placeholder='Select interval',
                 ),
-                span=3, offset=1,
+                span={"base": 12, "md": 3}, offset={"base": 0, "md": 1},
             ),
         ]),
         dmc.Grid([
@@ -168,7 +168,7 @@ assets_tab = dmc.Container(
                     placeholder='Select sector(s)',
                     multi=True,
                 ),
-                span=3, offset=1,
+                span={"base": 12, "md": 3}, offset={"base": 0, "md": 1},
             ),
         ]),
         dmc.Grid([
@@ -179,7 +179,7 @@ assets_tab = dmc.Container(
                     placeholder='Select asset type(s)',
                     multi=True,
                 ),
-                span=3, offset=1,
+                span={"base": 12, "md": 3}, offset={"base": 0, "md": 1},
             ),
         ]),
         dmc.Grid([
@@ -190,7 +190,7 @@ assets_tab = dmc.Container(
                     placeholder='Select account type(s)',
                     multi=True,
                 ),
-                span=3, offset=1,
+                span={"base": 12, "md": 3}, offset={"base": 0, "md": 1},
             ),
         ]),
         dmc.Grid([
@@ -201,7 +201,7 @@ assets_tab = dmc.Container(
                     placeholder='Select geography(s)',
                     multi=True,
                 ),
-                span=3, offset=1,
+                span={"base": 12, "md": 3}, offset={"base": 0, "md": 1},
             ),
         ]),
         dmc.Grid([
@@ -212,7 +212,7 @@ assets_tab = dmc.Container(
                     ),
                     shadow="sm", p="md",
                 ),
-                span=12,
+                span={"base": 12, "md": 12},
             ),
         ]),
     ],

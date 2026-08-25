@@ -157,7 +157,7 @@ hypotheticals_tab = dmc.Container(
                     placeholder='Select sector(s)',
                     multi=True,
                 ),
-                span=3, offset=1,
+                span={"base": 12, "md": 3}, offset={"base": 0, "md": 1},
             ),
             dmc.GridCol(
                 dcc.Dropdown(
@@ -165,7 +165,7 @@ hypotheticals_tab = dmc.Container(
                     placeholder='Select asset(s)',
                     multi=True,
                 ),
-                span=3, offset=1,
+                span={"base": 12, "md": 3}, offset={"base": 0, "md": 1},
             ),
         ]),
         dmc.Grid([
@@ -176,7 +176,7 @@ hypotheticals_tab = dmc.Container(
                     ),
                     shadow="sm", p="md",
                 ),
-                span=9,
+                span={"base": 12, "md": 9},
             ),
             dmc.GridCol(
                 dmc.Paper(
@@ -189,7 +189,7 @@ hypotheticals_tab = dmc.Container(
                     ),
                     shadow="sm", p="md",
                 ),
-                span=3,
+                span={"base": 12, "md": 3},
             ),
         ]),
     ],
