@@ -31,6 +31,17 @@ def _assert_served_layout_is_responsive(port):
     catches anything lost between construction and serialisation.
 
     Returns a list of failure strings (empty means pass).
+
+    Scope note on the px-height check below: it inspects only dcc.Graph
+    `style` heights on the tabs that got full responsive treatment
+    (Portfolio, Sectors, Asset Types, Account Types, Geography). Assets and
+    Hypotheticals deliberately got a minimal non-overflow pass only -- no
+    chart work -- and still set fixed heights at the *figure* level
+    (assets_tab.py, hypotheticals_tab.py: height=800) plus a 600px AgGrid
+    (assets_tab.py). Those are in-spec and this check does not see them, so
+    a clean run here is not a claim that every pixel height on every tab is
+    responsive -- only that the Graph `style` heights on the responsive tabs
+    are.
     """
     with urllib.request.urlopen(
             f'http://localhost:{port}/_dash-layout', timeout=30) as resp:
@@ -75,10 +86,16 @@ def _assert_served_layout_is_responsive(port):
     if not card_containers:
         failures.append('no mobile card containers (hiddenFrom="md") served')
     if px_heights:
-        failures.append(f'Graph(s) with fixed px height: {px_heights}')
+        failures.append(
+            f'dcc.Graph style height(s) with fixed px on a responsive tab: '
+            f'{px_heights}')
 
     print(f'  responsive spans: {"ok" if not fixed_spans else "FAILED"}')
     print(f'  card containers served: {len(card_containers)}')
+    print(f'  dcc.Graph style px heights on responsive tabs: '
+          f'{"ok" if not px_heights else "FAILED"} '
+          f'(figure-level heights on Assets/Hypotheticals are out of scope '
+          f'for this check -- see docstring)')
     return failures
 
 
@@ -107,9 +124,12 @@ def main():
             return 1
 
         print()
-        print('Served layout is responsive. Remaining checks need a rendered '
-              'page (no browser driver is installed, and adding one would '
-              'breach the no-new-dependencies constraint):')
+        print('Served layout passes structural checks (responsive spans, '
+              'mobile card containers, and dcc.Graph style heights on the '
+              'responsive tabs -- see scope note in the docstring above for '
+              'what that last check does not cover). Remaining checks need '
+              'a rendered page (no browser driver is installed, and adding '
+              'one would breach the no-new-dependencies constraint):')
         print(f'  - document.scrollWidth close to {PHONE_WIDTH} '
               f'(baseline before this work: 1401)')
         print(f'  - every visible chart/grid >= {MIN_USABLE_WIDTH}px '
