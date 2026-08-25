@@ -261,5 +261,9 @@ Existing tests must keep passing; write mode is unchanged, so
 - Authentication, TLS, secrets, deployment target — goal 3 spec.
 - Responsive layout, mobile navigation, touch interaction — goal 2 spec.
 - Framework migration (`FRAMEWORK_COMPARISON.md`) — not justified by the measurements.
-- The plaintext MySQL password in `libraries/db/pwd.py` — noted here, fixed in the goal 3
-  spec, since it is a secrets-management concern rather than a performance one.
+- The plaintext MySQL password in `libraries/db/pwd.py` — noted here, addressed in the
+  goal 3 spec, since it is a secrets-management concern rather than a performance one.
+  To be precise: `pwd.py` is gitignored and has never been committed (verified against
+  full history), as are `files/` and `.env`. The password is plaintext on local disk
+  only — it is not exposed in the public repository. What goal 3 needs is a real secrets
+  mechanism for the hosted deployment, not an incident response.
