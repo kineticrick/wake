@@ -120,4 +120,5 @@ app.layout = _build_layout
 print(f'Portfolio Dashboard loaded in {time.perf_counter() - enter} seconds')
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    port = int(os.environ.get('PORT', 8050))
+    app.run(debug=False, port=port)

@@ -334,6 +334,17 @@ The chat layer has its own fully offline suite (no database, no network, no API 
 python -m unittest discover -s tests/libraries/chat -p "test_*.py" -v
 ```
 
+### Mobile viewport check
+
+```bash
+PORTFOLIO_READ_ONLY=1 python tests/libraries/test_mobile_viewport.py
+```
+
+Starts the app on port 8051 and prints the geometry assertions to verify at
+390px. Separate from the unittest suite because it needs a live server. The
+layout assertions in `tests/libraries/test_responsive_layout.py` run offline
+as part of the normal suite.
+
 The suite needs nothing beyond `requirements.txt`. If you prefer pytest's
 output, install the optional dev extras and use it as a drop-in runner:
 
