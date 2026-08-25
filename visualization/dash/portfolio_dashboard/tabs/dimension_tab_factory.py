@@ -10,6 +10,14 @@ from visualization.dash.portfolio_dashboard.components.responsive_table import (
     build_mobile_cards, responsive_table)
 import dash_mantine_components as dmc
 
+# Fields shown on a card at phone width, for all four dimension tabs (sectors,
+# asset types, account types, geography) -- they share one summary_df shape.
+# Deliberately short: more than ~4 reproduces the unreadable wide table in
+# card form. Module-level (rather than local to the factory) so tests can
+# assert these names actually exist in the summary frames they are applied
+# to -- see tests/libraries/test_mobile_card_fields.py.
+DIMENSION_MOBILE_FIELDS = ['Current Value', 'VW Return', '% of Total Portfolio']
+
 
 def create_dimension_tab(dimension_name, column_name, summary_df_attr, history_df_attr, tab_id):
     """Factory function to create a dimension tab (sectors, asset_types, etc.)
@@ -41,9 +49,7 @@ def create_dimension_tab(dimension_name, column_name, summary_df_attr, history_d
             _cache['row_data'] = summary_df.to_dict('records')
         return _cache
 
-    # Fields shown on a card at phone width. Deliberately short: more than
-    # ~4 reproduces the unreadable wide table in card form.
-    mobile_fields = ['Current Value', 'VW Return', '% of Total Portfolio']
+    mobile_fields = DIMENSION_MOBILE_FIELDS
 
     # Register the combined table + graph update callback
     @callback(
