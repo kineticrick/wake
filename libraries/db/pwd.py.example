@@ -1,0 +1,10 @@
+# Copy this file to `pwd.py` and set your MySQL password.
+#
+#     cp libraries/db/pwd.py.example libraries/db/pwd.py
+#
+# `pwd.py` is gitignored and must never be committed. It has never been in this
+# repository's history -- keep it that way.
+#
+# The user/host/database that go with this password live in `dbcfg.py`; edit
+# those there if your setup differs from the defaults.
+mysql_pwd = "your-mysql-password-here"

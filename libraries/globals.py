@@ -107,7 +107,17 @@ ASSETS_DOWNSAMPLE_WINDOW_DAYS = 60
 
 ### Generators ###
 
-ROOT_DIR = "/home/kineticrick/code/python/wake"
+# Repo root, derived from this file's location rather than hardcoded.
+#
+# This was previously a literal absolute path to one developer's checkout.
+# Everything machine-specific hangs off it -- FILEDIRS (the CSV inputs) and
+# CACHE_DIR -- so on any other machine, or in a second checkout on the same
+# machine, it did not fail loudly: it silently read inputs from and wrote the
+# cache into the *other* directory. Deriving it means a clone works wherever
+# it lands. WAKE_ROOT overrides it for deployments that split code and data.
+ROOT_DIR = os.environ.get(
+    'WAKE_ROOT',
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Absolute path to the diskcache directory, overridable for deployment.
 #
