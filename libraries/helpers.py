@@ -29,13 +29,14 @@ from libraries.db.sql import (master_log_buys_query,
 from libraries.yfinance_helpers import get_historical_prices, get_current_price
 from libraries.globals import (NON_QUANTITY_ASSET_EVENTS, ASSET_EVENTS,
                             MASTER_LOG_COLUMNS, CADENCE_MAP,
-                            ACCOUNT_TYPES, AGGREGATION_CACHE_MAX_ENTRIES)
+                            ACCOUNT_TYPES, AGGREGATION_CACHE_MAX_ENTRIES,
+                            ensure_cache_dir)
 from pandas.tseries.offsets import BDay
 from pandas.tseries.frequencies import to_offset
 
 from diskcache import Cache
 
-cache = Cache('cache')
+cache = Cache(ensure_cache_dir())
 
 # Static mapping of event types to their query/column pairs (avoids globals() lookups)
 _EVENT_QUERIES = {

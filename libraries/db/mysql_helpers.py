@@ -1,8 +1,9 @@
 from libraries.db import MysqlDB
-from libraries.globals import MYSQL_CACHE_TTL, MYSQL_CACHE_HISTORY_TAG
+from libraries.globals import (MYSQL_CACHE_TTL, MYSQL_CACHE_HISTORY_TAG,
+                               ensure_cache_dir)
 from diskcache import Cache
 
-cache = Cache("cache")
+cache = Cache(ensure_cache_dir())
 
 @cache.memoize(expire=MYSQL_CACHE_TTL, tag=MYSQL_CACHE_HISTORY_TAG)
 def mysql_query(query, dbcfg, verbose=False):

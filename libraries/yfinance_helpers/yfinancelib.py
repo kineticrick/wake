@@ -14,7 +14,7 @@ from dateutil.relativedelta import relativedelta
 from libraries.pandas_helpers import print_full, mysql_to_df
 from libraries.globals import (BUSINESS_CADENCE_MAP, CADENCE_MAP,
                                SYMBOL_BLACKLIST, PORTFOLIO_READ_ONLY,
-                               ReadOnlyModeError)
+                               ReadOnlyModeError, ensure_cache_dir)
 from libraries.db import dbcfg
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ from pandas.tseries.offsets import Day
 
 from diskcache import Cache
 
-cache = Cache('cache')
+cache = Cache(ensure_cache_dir())
 
 # Given a type of unit and count, return the start date in the past
 # For instance, "week, 2" would give the date 2 weeks ago

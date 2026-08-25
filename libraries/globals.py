@@ -109,6 +109,44 @@ ASSETS_DOWNSAMPLE_WINDOW_DAYS = 60
 
 ROOT_DIR = "/home/kineticrick/code/python/wake"
 
+# Absolute path to the diskcache directory, overridable for deployment.
+#
+# This used to be Cache('cache') in three separate modules, which resolves
+# RELATIVE TO THE PROCESS'S WORKING DIRECTORY. Two consequences, both bad:
+# launching the app from anywhere but the repo root silently created a second,
+# disjoint cache (so the web tier and the systemd jobs -- which do pin
+# WorkingDirectory -- could disagree), and the location was wherever the
+# launcher happened to be, including directories other users can write.
+#
+# That second point matters because diskcache deserializes cached values with
+# pickle (CVE-2025-69872, GHSA-w8v5-vhqr-4h9v). There is no patched release:
+# 5.6.3 is both the vulnerable ceiling and the newest version, published
+# 2023-08-31. Anyone who can write into this directory can therefore execute
+# code in the process that reads it, so the directory's location and its
+# permissions ARE the mitigation. ensure_cache_dir() below restricts it to
+# the owner.
+CACHE_DIR = os.environ.get('PORTFOLIO_CACHE_DIR',
+                           os.path.join(ROOT_DIR, 'cache'))
+
+
+def ensure_cache_dir(path: str = None) -> str:
+    """
+    Return the cache directory, creating it and restricting it to its owner.
+
+    Called at import by every module that opens the diskcache. Idempotent, and
+    deliberately non-fatal if the mode cannot be changed -- a cache directory
+    owned by another user still works for reads, and refusing to start would
+    be a worse failure than running with the permissions we found.
+    """
+    path = path or CACHE_DIR
+    os.makedirs(path, exist_ok=True)
+    try:
+        os.chmod(path, 0o700)
+    except OSError:
+        pass
+    return path
+
+
 FILEDIRS = {'entities': os.path.join(ROOT_DIR, 'files/entities'), 
             'splits': os.path.join(ROOT_DIR, 'files/splits'),
             'acquisitions': os.path.join(ROOT_DIR, 'files/acquisitions'),
