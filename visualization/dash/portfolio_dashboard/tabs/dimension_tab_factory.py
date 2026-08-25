@@ -1,5 +1,4 @@
 from dash import callback, dcc, Input, Output, html, no_update
-import dash_ag_grid as dag
 import plotly.express as px
 import pandas as pd
 from pandas.tseries.offsets import DateOffset
@@ -7,6 +6,8 @@ from pandas.tseries.offsets import DateOffset
 from libraries.returns import value_weighted_lifetime_return, rebase_to_window_start
 from libraries.downsample import downsample_history
 from visualization.dash.portfolio_dashboard.globals import *
+from visualization.dash.portfolio_dashboard.components.responsive_table import (
+    build_mobile_cards, responsive_table)
 import dash_mantine_components as dmc
 
 
@@ -40,17 +41,22 @@ def create_dimension_tab(dimension_name, column_name, summary_df_attr, history_d
             _cache['row_data'] = summary_df.to_dict('records')
         return _cache
 
+    # Fields shown on a card at phone width. Deliberately short: more than
+    # ~4 reproduces the unreadable wide table in card form.
+    mobile_fields = ['Current Value', 'VW Return', '% of Total Portfolio']
+
     # Register the combined table + graph update callback
     @callback(
         Output(f'{dimension_name}-table', 'columnDefs'),
         Output(f'{dimension_name}-table', 'rowData'),
+        Output(f'{dimension_name}-table-cards', 'children'),
         Output(f'{dimension_name}-history-graph', 'figure'),
         Input('tabs', 'value'),
         Input(f'{dimension_name}-table', 'selectedRows'),
         Input(f'{dimension_name}-interval-dropdown', 'value'))
     def update_tab(active_tab, selected_rows, interval):
         if active_tab != tab_id:
-            return no_update, no_update, no_update
+            return no_update, no_update, no_update, no_update
 
         data = _get_data()
         full_history = getattr(DASH_HANDLER, history_df_attr)
@@ -112,10 +118,18 @@ def create_dimension_tab(dimension_name, column_name, summary_df_attr, history_d
             hover_data={'y': ':.2f%'},
             color=chart_df[column_name],
         )
-        fig.update_layout(height=800)
+        fig.update_layout(
+            autosize=True,
+            margin=dict(l=40, r=20, t=20, b=20),
+            # Horizontal legend below the plot: it wraps instead of eating
+            # horizontal space, which a phone has none of to spare.
+            legend=dict(orientation="h", yanchor="top", y=-0.15),
+        )
         fig.update_yaxes(ticksuffix="%")
 
-        return data['column_defs'], row_data, fig
+        return (data['column_defs'], row_data,
+                build_mobile_cards(row_data, column_name, mobile_fields),
+                fig)
 
     # Build the layout with empty table (populated on first tab visit)
     tab_layout = dmc.Container(
@@ -123,10 +137,10 @@ def create_dimension_tab(dimension_name, column_name, summary_df_attr, history_d
             dmc.Grid([
                 dmc.GridCol(
                     dmc.Paper(
-                        dag.AgGrid(
-                            id=f'{dimension_name}-table',
-                            columnDefs=[],
-                            rowData=[],
+                        responsive_table(
+                            f'{dimension_name}-table',
+                            primary_field=column_name,
+                            mobile_fields=mobile_fields,
                             defaultColDef={"resizable": True},
                             dashGridOptions={
                                 "rowSelection": {"mode": "multiRow"},
@@ -136,7 +150,7 @@ def create_dimension_tab(dimension_name, column_name, summary_df_attr, history_d
                         ),
                         shadow="sm", p="md",
                     ),
-                    span=12,
+                    span={"base": 12, "md": 12},
                 ),
             ]),
             dmc.Grid([
@@ -147,7 +161,10 @@ def create_dimension_tab(dimension_name, column_name, summary_df_attr, history_d
                         value=DEFAULT_INTERVAL,
                         placeholder='Select interval',
                     ),
-                    span=3, offset=1,
+                    # Full width on a phone; the desktop offset would waste
+                    # most of a narrow screen.
+                    span={"base": 12, "md": 3},
+                    offset={"base": 0, "md": 1},
                 ),
             ]),
             dmc.Grid([
@@ -155,10 +172,12 @@ def create_dimension_tab(dimension_name, column_name, summary_df_attr, history_d
                     dmc.Paper(
                         dcc.Graph(
                             id=f'{dimension_name}-history-graph',
+                            style={"height": "60vh"},
+                            config={"responsive": True},
                         ),
                         shadow="sm", p="md",
                     ),
-                    span=12,
+                    span={"base": 12, "md": 12},
                 ),
             ]),
         ],
