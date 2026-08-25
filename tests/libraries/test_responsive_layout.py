@@ -72,5 +72,46 @@ class TestDimensionTabResponsive(unittest.TestCase):
         self.assertTrue(any(getattr(b, 'hiddenFrom', None) == 'md' for b in boxes))
 
 
+class TestPortfolioTabResponsive(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        # As with sectors_tab above: tabs/__init__.py does
+        # `from .portfolio_tab import portfolio_tab`, so this import already
+        # yields the Container -- there is no `.portfolio_tab` attribute on it.
+        from visualization.dash.portfolio_dashboard.tabs import portfolio_tab
+        cls.layout = portfolio_tab
+
+    def test_every_gridcol_span_is_responsive(self):
+        for col in grid_cols(self.layout):
+            self.assertIsInstance(
+                col.span, dict,
+                f"span={col.span!r} is a fixed fraction at every width")
+
+    def test_every_offset_collapses_on_mobile(self):
+        # An offset on a full-width column just wastes a narrow screen.
+        for col in grid_cols(self.layout):
+            offset = getattr(col, 'offset', None)
+            if offset is None:
+                continue
+            self.assertIsInstance(offset, dict)
+            self.assertEqual(offset.get('base'), 0)
+
+    def test_history_chart_has_no_fixed_pixel_height(self):
+        history = [g for g in graphs(self.layout)
+                   if g.id == 'portfolio-history-graph']
+        self.assertEqual(len(history), 1)
+        style = getattr(history[0], 'style', None) or {}
+        self.assertNotIn('px', str(style.get('height', '')))
+
+    def test_all_three_tables_have_a_mobile_card_view(self):
+        boxes = [c for c in walk(self.layout) if type(c).__name__ == 'Box']
+        card_ids = {getattr(b, 'id', None) for b in boxes
+                    if getattr(b, 'hiddenFrom', None) == 'md'}
+        self.assertIn('portfolio-milestones-table-cards', card_ids)
+        self.assertIn('winners-table-cards', card_ids)
+        self.assertIn('losers-table-cards', card_ids)
+
+
 if __name__ == '__main__':
     unittest.main()
