@@ -141,7 +141,7 @@ Expected: PASS, including the three pre-existing `gen_hist_quantities` tests une
 - [ ] **Step 6: Run the full suite**
 
 Run: `./venv/bin/python -m unittest discover -s tests -t . -p "test_*.py"`
-Expected: `Ran 185 tests`, `OK` (181 baseline + 4).
+Expected: `Ran 157 tests`, `OK` (153 baseline + 4).
 
 - [ ] **Step 7: Commit**
 
@@ -471,7 +471,7 @@ Expected: PASS (12 tests)
 - [ ] **Step 5: Run the full suite**
 
 Run: `./venv/bin/python -m unittest discover -s tests -t . -p "test_*.py"`
-Expected: `Ran 197 tests`, `OK` (185 + 12).
+Expected: `Ran 169 tests`, `OK` (157 + 12).
 
 - [ ] **Step 6: Verify against the live ledger**
 
@@ -507,6 +507,6 @@ git commit -m "feat(tax_lots): expose open tax lots per symbol and account"
 
 ## Notes for the executor
 
-- Test totals assume a 181 baseline. If yours differs, assert the delta rather than the total. If the suite errors with `Access denied for user`, the DB credential in `libraries/db/pwd.py` is stale — that is environment, not code.
+- Test totals assume a 153 baseline, measured on this branch (off `main`). Note `feat/mobile-responsive` carries ~28 more tests, so a measurement taken there reads ~181. If yours differs, assert the delta rather than the total. If the suite errors with `Access denied for user`, the DB credential in `libraries/db/pwd.py` is stale — that is environment, not code.
 - No task may add a second event-replay loop. If one seems necessary, stop and report.
 - No task may put a real portfolio figure, holding or date in a tracked file.
