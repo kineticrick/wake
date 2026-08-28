@@ -175,5 +175,51 @@ class TestHelpers(unittest.TestCase):
         # self.assertTrue(all(row['Symbol'] in symbols 
         #                    for _, row in filtered_result.iterrows()))
 
+    def test_gen_hist_quantities_default_return_is_unchanged(self):
+        """Every existing caller must still get a bare DataFrame."""
+        result = gen_hist_quantities(self.test_data)
+        self.assertIsInstance(result, pd.DataFrame)
+        self.assertNotIsInstance(result, tuple)
+
+    def test_gen_hist_quantities_returns_lots_when_asked(self):
+        result, lots = gen_hist_quantities(self.test_data, return_lots=True)
+        self.assertIsInstance(result, pd.DataFrame)
+        self.assertIsInstance(lots, list)
+        # setUp buys 100 @150 then 50 @155, then sells 75.
+        # FIFO takes all 75 from the first lot, leaving 25 there and 50 intact.
+        open_lots = [lot for lot in lots if lot['remaining_quantity'] > 0]
+        self.assertEqual(len(open_lots), 2)
+        self.assertAlmostEqual(open_lots[0]['remaining_quantity'], 25)
+        self.assertAlmostEqual(open_lots[0]['purchase_price'], 150.0)
+        self.assertAlmostEqual(open_lots[1]['remaining_quantity'], 50)
+        self.assertAlmostEqual(open_lots[1]['purchase_price'], 155.0)
+
+    def test_gen_hist_quantities_lots_are_split_adjusted(self):
+        split_data = self.test_data.copy()
+        split_data.loc[len(split_data)] = {
+            'Date': '2024-01-04',
+            'Symbol': 'AAPL',
+            'Action': 'split',
+            'Quantity': 0,
+            'PricePerShare': 0,
+            'Multiplier': 2,
+        }
+        _, lots = gen_hist_quantities(split_data, return_lots=True)
+        open_lots = [lot for lot in lots if lot['remaining_quantity'] > 0]
+        # A 2:1 split doubles each lot's shares and halves its price, so the
+        # basis each lot carries is unchanged. Checking both sides catches a
+        # rescale applied to only one of them.
+        self.assertAlmostEqual(open_lots[0]['remaining_quantity'], 50)
+        self.assertAlmostEqual(open_lots[0]['purchase_price'], 75.0)
+        self.assertAlmostEqual(
+            open_lots[0]['remaining_quantity'] * open_lots[0]['purchase_price'],
+            25 * 150.0)
+
+    def test_gen_hist_quantities_return_lots_is_keyword_only(self):
+        # Positional would silently become expand_chronology's neighbour and
+        # break the moment a parameter is inserted.
+        with self.assertRaises(TypeError):
+            gen_hist_quantities(self.test_data, 'daily', True, True)
+
 if __name__ == '__main__':
     unittest.main() 
