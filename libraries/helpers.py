@@ -151,21 +151,29 @@ def  build_master_log(symbols: list=[], account_type: str=None) -> pd.DataFrame:
 
     return master_log_df
 
-def gen_hist_quantities(asset_event_log_df: pd.DataFrame, 
-                        cadence: str='daily', 
-                        expand_chronology: bool=True) -> pd.DataFrame:
-    """ 
+def gen_hist_quantities(asset_event_log_df: pd.DataFrame,
+                        cadence: str='daily',
+                        expand_chronology: bool=True,
+                        *,
+                        return_lots: bool=False):
+    """
     Based on log of asset events (buy, sell, split, etc) for a single asset,
-    build a dataframe of historical quantities of that asset, on the 
-    cadence given (daily, weekly, monthly, quaterly, yearly). 
-    
+    build a dataframe of historical quantities of that asset, on the
+    cadence given (daily, weekly, monthly, quaterly, yearly).
+
     If expand_chronology is True, then the dataframe will include all dates.
     If False, then only dates with a quantity change will be included.
-    
+
     Returns: quantities_df
         Date, Symbol, quantity (net), AccountType
         2019-01-01, MSFT, 100, Discretionary
         2019-06-12, MSFT, 50, Discretionary
+
+    If return_lots is True, returns (quantities_df, lots) instead, where lots
+    is the internal purchase_list: one dict per purchase tranche, with keys
+    Date, initial_quantity, remaining_quantity and purchase_price. Prices are
+    split-adjusted. This is the same list the CostBasis above is derived from,
+    which is the point - a second replay could drift from it.
     """
     #TODO: Ensure only one symbol, account type pair is passed in
     # assert(len(asset_event_log_df['Symbol'].unique()) == 1)
@@ -319,9 +327,11 @@ def gen_hist_quantities(asset_event_log_df: pd.DataFrame,
         # Downsample to specified cadence
         # quantities_df = quantities_df.asfreq(BUSINESS_CADENCE_MAP[cadence])
         
-    if "Date" in quantities_df.columns: 
+    if "Date" in quantities_df.columns:
         quantities_df = quantities_df.set_index('Date')
 
+    if return_lots:
+        return quantities_df, purchase_list
     return quantities_df
 
 def gen_hist_quantities_mult(assets_event_log_df: pd.DataFrame, 
