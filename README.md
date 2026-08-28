@@ -357,6 +357,7 @@ wake/
 ├── libraries/
 │   ├── globals.py                     # All configuration constants
 │   ├── helpers.py                     # Core business logic
+│   ├── tax_lots.py                    # Open FIFO tax lots per (symbol, account)
 │   ├── returns.py                     # Value-weighted / rebased return math
 │   ├── chat/                          # Natural-language chat layer
 │   │   ├── config.py                  # Model, limits, system prompt

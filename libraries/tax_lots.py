@@ -18,6 +18,21 @@ from libraries.helpers import build_master_log, gen_hist_quantities
 LOT_COLUMNS = ['Symbol', 'AccountType', 'AcquiredDate', 'Quantity',
                'CostPerShare', 'CostBasis', 'DaysHeld', 'LongTerm']
 
+# Matches the dtypes a populated result actually carries, so an empty result
+# is the same shape as a populated one rather than an all-object frame a
+# consumer would need to special-case before doing dtype-sensitive work
+# (datetime arithmetic, numeric comparisons) on it.
+LOT_DTYPES = {
+    'Symbol': str,
+    'AccountType': str,
+    'AcquiredDate': 'datetime64[us]',
+    'Quantity': 'float64',
+    'CostPerShare': 'float64',
+    'CostBasis': 'float64',
+    'DaysHeld': 'int64',
+    'LongTerm': 'bool',
+}
+
 # Splits and acquisitions are tagged 'Agnostic' rather than a real account.
 REAL_ACCOUNT_TYPES = ['Discretionary', 'Retirement']
 AGNOSTIC = 'Agnostic'
@@ -33,10 +48,12 @@ class LotReconciliationError(RuntimeError):
 
 
 def _empty() -> pd.DataFrame:
-    return pd.DataFrame(columns=LOT_COLUMNS)
+    return pd.DataFrame(
+        {col: pd.Series(dtype=dtype) for col, dtype in LOT_DTYPES.items()},
+        columns=LOT_COLUMNS)
 
 
-def get_tax_lots(symbol: str=None, account_type: str=None, as_of=None,
+def get_tax_lots(symbol: str=None, account_type: str=None, *, as_of=None,
                  strict: bool=True, _log: pd.DataFrame=None) -> pd.DataFrame:
     """Open tax lots per (symbol, account).
 
@@ -52,7 +69,11 @@ def get_tax_lots(symbol: str=None, account_type: str=None, as_of=None,
     """
     log = _log if _log is not None else build_master_log(
         symbols=[symbol] if symbol else [])
-    if log is None or log.empty:
+    # build_master_log always returns a DataFrame (mysql_to_df concats query
+    # results into one even when a query returns zero rows), so it can never
+    # be None here - only empty. No `log is None` check: that branch would be
+    # untestable dead code.
+    if log.empty:
         return _empty()
 
     as_of_ts = (pd.Timestamp(as_of) if as_of is not None
@@ -97,6 +118,16 @@ def get_tax_lots(symbol: str=None, account_type: str=None, as_of=None,
 
         for lot in open_lots:
             acquired = pd.Timestamp(lot['Date'])
+            if acquired > as_of_ts:
+                # as_of doesn't rewind the ledger (see docstring), so a past
+                # as_of paired with a lot acquired since then produces a
+                # negative DaysHeld that looks plausible rather than wrong.
+                # Warn rather than raise: it's a documented hazard, not an
+                # error, and the lots are still the correct current set.
+                warnings.warn(
+                    f"{sym} ({acct}): lot acquired {acquired.date()} is after "
+                    f"as_of {as_of_ts.date()}; DaysHeld will be negative",
+                    UserWarning, stacklevel=2)
             quantity = float(lot['remaining_quantity'])
             price = float(lot['purchase_price'])
             days_held = (as_of_ts - acquired).days

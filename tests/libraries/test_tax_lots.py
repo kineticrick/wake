@@ -86,7 +86,26 @@ class TestGetTaxLots(unittest.TestCase):
         self.assertEqual(long_.iloc[0]['DaysHeld'], 366)
         self.assertTrue(bool(long_.iloc[0]['LongTerm']))
 
+    def test_as_of_before_acquisition_warns_but_still_returns_the_lots(self):
+        # as_of doesn't rewind the ledger (documented), so a past as_of paired
+        # with a lot acquired since then yields a plausible-looking negative
+        # DaysHeld rather than an error. The warning converts that from a
+        # silent hazard into a detected one, without changing the return
+        # value - the deterministic-test use case (as_of pinned in the past)
+        # must still work, just noisily when it's genuinely misapplied.
+        rows = _log([['2024-06-01', 'AAA', 'buy', 10, 5.0, 1, 'Discretionary']])
+        with self.assertWarns(UserWarning):
+            lots = get_tax_lots(_log=rows, as_of='2024-01-01')
+        self.assertEqual(len(lots), 1)
+        self.assertAlmostEqual(lots.iloc[0]['Quantity'], 10)
+        self.assertLess(lots.iloc[0]['DaysHeld'], 0)
+
     def test_a_fully_sold_position_is_absent(self):
+        # Note: this cannot localize a break to a specific guard. The
+        # `held <= 0` skip and the `remaining_quantity > 0` open-lots filter
+        # are independent, and either one alone produces the empty result
+        # asserted here - so this test survives either guard being removed
+        # on its own. Not vacuous, just weaker than its name suggests.
         rows = _log([
             ['2024-01-01', 'AAA', 'buy', 100, 10.0, 1, 'Discretionary'],
             ['2024-07-01', 'AAA', 'sell', 100, None, 1, 'Discretionary'],
@@ -107,10 +126,43 @@ class TestGetTaxLots(unittest.TestCase):
                                           as_of='2024-12-31')['AccountType']),
                          {'Retirement'})
 
+    def test_as_of_strict_and_log_are_keyword_only(self):
+        # Positional would silently miscount onto the wrong parameter -
+        # get_tax_lots('AAA', 'Discretionary', None, False) would switch off
+        # the reconciliation guard without raising anything.
+        with self.assertRaises(TypeError):
+            get_tax_lots('AAA', 'Discretionary', '2024-12-31', False, self.simple)
+
     def test_unknown_symbol_returns_an_empty_frame_not_an_error(self):
         lots = get_tax_lots(_log=self.simple, symbol='ZZZ', as_of='2024-12-31')
         self.assertTrue(lots.empty)
         self.assertEqual(list(lots.columns), tax_lots.LOT_COLUMNS)
+
+    def test_an_empty_master_log_returns_an_empty_frame_not_an_error(self):
+        """The guard's own condition, actually exercised.
+
+        A zero-row-but-columned frame (`_log([])`) already falls through
+        harmlessly via the `if not rows` branch further down, without ever
+        needing the guard - it does not prove the guard does anything. A
+        genuinely empty frame - no columns, matching what `log.empty` alone
+        checks for - is the case the guard exists for: log[['Symbol',
+        'AccountType']] on it raises KeyError once the guard is removed.
+        """
+        lots = get_tax_lots(_log=pd.DataFrame(), symbol='ZZZ', as_of='2024-12-31')
+        self.assertTrue(lots.empty)
+        self.assertEqual(list(lots.columns), tax_lots.LOT_COLUMNS)
+
+    def test_empty_result_has_the_same_dtypes_as_a_populated_one(self):
+        # A consumer that branches on dtype, or does datetime arithmetic on
+        # AcquiredDate, should see one schema regardless of whether any lots
+        # came back - not an all-object frame in the empty case.
+        empty = get_tax_lots(_log=pd.DataFrame(), symbol='ZZZ', as_of='2024-12-31')
+        populated = get_tax_lots(_log=self.simple, as_of='2024-12-31')
+        self.assertTrue(empty.empty)
+        self.assertFalse(populated.empty)
+        for col in tax_lots.LOT_COLUMNS:
+            self.assertEqual(empty[col].dtype, populated[col].dtype,
+                             f"{col} dtype mismatch")
 
 
 class TestReconciliation(unittest.TestCase):
@@ -136,6 +188,20 @@ class TestReconciliation(unittest.TestCase):
         with self.assertRaises(LotReconciliationError) as ctx:
             get_tax_lots(_log=self.rows, as_of='2024-12-31')
         self.assertIn('AAA', str(ctx.exception))
+
+    @patch('libraries.tax_lots.gen_hist_quantities')
+    def test_replay_is_called_with_expand_chronology_false(self, replay):
+        # expand_chronology=False is a real dependency, not an incidental
+        # default: with the default True, the replay reindexes to one row
+        # per calendar day per position - a large silent cost across many
+        # positions - even though only the final state (iloc[-1]) is used.
+        # return_lots=True is what makes the lot ledger available at all.
+        replay.return_value = (self.quantities, self.short_lots)
+        with self.assertWarns(UserWarning):
+            get_tax_lots(_log=self.rows, as_of='2024-12-31', strict=False)
+        _, kwargs = replay.call_args
+        self.assertEqual(kwargs.get('expand_chronology'), False)
+        self.assertEqual(kwargs.get('return_lots'), True)
 
     @patch('libraries.tax_lots.gen_hist_quantities')
     def test_non_strict_returns_the_lots_and_warns(self, replay):
