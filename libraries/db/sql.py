@@ -403,6 +403,18 @@ fail_history_meta_run_sql = \
     ("UPDATE history_meta SET run_finished = %s, status = 'failed', "
      "error = %s WHERE id = %s")
 
+# A run killed mid-flight -- machine suspended, OOM, TimeoutStartSec, Ctrl-C --
+# never reaches finish_run() or fail_run(), so its row stays 'running' forever.
+# Nothing reported those rows, so a genuinely hung updater left exactly the same
+# trace as a long-finished one. Sweeping them at the start of the next run marks
+# what actually happened and keeps them from accumulating.
+#
+# Bounded by run_started to avoid racing a legitimately in-flight run: only rows
+# older than the cutoff are swept.
+abandon_stale_history_meta_runs_sql = \
+    ("UPDATE history_meta SET status = 'failed', run_finished = %s, "
+     "error = %s WHERE status = 'running' AND run_started < %s")
+
 read_last_successful_run_query = \
     ("SELECT run_finished, tables_json FROM history_meta "
      "WHERE status = 'success' ORDER BY run_finished DESC LIMIT 1")

@@ -21,6 +21,7 @@ from libraries.db.sql import (create_history_meta_table_sql,
                               insert_history_meta_run_sql,
                               finish_history_meta_run_sql,
                               fail_history_meta_run_sql,
+                              abandon_stale_history_meta_runs_sql,
                               read_last_successful_run_query,
                               read_current_prices_freshness_query)
 from libraries.globals import PRICE_SNAPSHOT_STALE_HOURS
@@ -57,10 +58,45 @@ def gen_history_meta_table() -> None:
         db.execute(create_history_meta_table_sql)
 
 
+# A run cannot legitimately still be in flight after this long: the systemd unit
+# sets TimeoutStartSec=1800 (30 minutes), and a cold run is ~90 seconds. Anything
+# older that is still marked 'running' was killed without reaching finish_run()
+# or fail_run() -- suspend, OOM, timeout, Ctrl-C. Matching the unit's timeout
+# means a run systemd would itself have killed is exactly the one swept.
+ABANDONED_RUN_AFTER = datetime.timedelta(seconds=1800)
+
+
+def abandon_stale_runs(now=None) -> int:
+    """
+    Mark runs left 'running' by a killed process as 'failed'. Returns the count.
+
+    Called at the start of every run. Only sweeps rows older than
+    ABANDONED_RUN_AFTER, so a legitimately in-flight run -- including a
+    concurrent manual one -- is never clobbered.
+
+    `now` is injectable for tests.
+    """
+    if now is None:
+        now = datetime.datetime.now()
+    cutoff = now - ABANDONED_RUN_AFTER
+    note = (f"Abandoned: still marked 'running' {ABANDONED_RUN_AFTER} after "
+            f"it started, so the process was killed before it could report. "
+            f"Swept at {now:%Y-%m-%d %H:%M:%S}.")
+    with MysqlDB(dbcfg) as db:
+        db.execute(abandon_stale_history_meta_runs_sql, (now, note, cutoff))
+        return db.cursor.rowcount
+
+
 def start_run(today=None) -> int:
-    """Record the start of an update run. Returns its row id."""
+    """
+    Record the start of an update run. Returns its row id.
+
+    Sweeps abandoned rows from previous killed runs first, so a hung updater
+    leaves a distinguishable trace instead of looking identical to a stale one.
+    """
     started = datetime.datetime.now() if today is None else \
         datetime.datetime.combine(today, datetime.time())
+    abandon_stale_runs()
     with MysqlDB(dbcfg) as db:
         db.execute(insert_history_meta_run_sql, (started,))
         return db.cursor.lastrowid
