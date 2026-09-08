@@ -53,6 +53,10 @@ A natural-language assistant embedded as its own tab. Ask things like *"What are
 - **Powered by the Claude API** (`claude-sonnet-4-6` by default), behind a thin provider interface so a local model can be swapped in later.
 - Works in demo mode too (answers over synthetic data). Requires an `ANTHROPIC_API_KEY` — see [Enabling Chat](#enabling-chat). Without a key, the tab shows a setup message instead of erroring.
 
+### Tax-Lot Ledger
+
+`libraries/tax_lots.py` exposes each holding's **open FIFO tax lots** per `(symbol, account)` — quantity, acquisition date, and cost basis for every lot still held. It's built on top of the same transaction history that drives the rest of the dashboard, so lots reflect real trades (including splits and acquisitions), not estimates. **Vantage** imports this API to plan real, tax-lot-aware liquidations — telling the analyst exactly which shares would be sold and what would be realized long- vs. short-term.
+
 ### Demo Mode
 Run the full dashboard with zero database or yfinance calls using synthetic GBM-simulated data. Useful for showcasing the app or developing without production data.
 
