@@ -22,7 +22,8 @@ from libraries.HistoryHandlers import PortfolioHistoryHandler
 from libraries.HistoryHandlers import SectorHistoryHandler
 from libraries.HistoryHandlers import AccountTypeHistoryHandler
 from libraries.HistoryHandlers import GeographyHistoryHandler
-from libraries.db.history_meta import (compute_staleness, last_successful_run,
+from libraries.db.history_meta import (compute_run_staleness, last_successful_run,
+                                       lagging_tables,
                                        latest_price_snapshot,
                                        compute_price_staleness)
 
@@ -141,10 +142,14 @@ class DashboardHandler:
             price_fetched_at (datetime|None), is_price_stale (bool) -- price_snapshot.py
         """
         try:
-            data_as_of, _table_dates = last_successful_run()
+            data_as_of, table_dates, run_finished_at = last_successful_run()
         except Exception:                          # noqa: BLE001 - never block a page load
-            data_as_of = None
-        is_stale = compute_staleness(data_as_of)
+            data_as_of, table_dates, run_finished_at = None, {}, None
+        # Judged on when the updater last SUCCEEDED, not on the data's date.
+        # The old date-vs-BDay(1) check fired every market holiday, because
+        # BDay knows weekends but not holidays -- see compute_run_staleness.
+        is_stale = compute_run_staleness(run_finished_at)
+        behind = lagging_tables(table_dates)
 
         try:
             price_fetched_at = latest_price_snapshot()
@@ -155,6 +160,7 @@ class DashboardHandler:
         return {
             'data_as_of': data_as_of,
             'is_stale': is_stale,
+            'lagging_tables': behind,
             'price_fetched_at': price_fetched_at,
             'is_price_stale': is_price_stale,
         }

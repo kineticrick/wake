@@ -107,7 +107,8 @@ def _build_layout():
     freshness = DASH_HANDLER.get_freshness()
     staleness_banner = build_staleness_banner(
         freshness['data_as_of'], freshness['is_stale'],
-        freshness['price_fetched_at'], freshness['is_price_stale'])
+        freshness['price_fetched_at'], freshness['is_price_stale'],
+        freshness.get('lagging_tables'))
     if staleness_banner is not None:
         banners.append(staleness_banner)
 

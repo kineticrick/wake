@@ -406,6 +406,8 @@ class DemoDashboardHandler(DashboardHandler):
         return {
             'data_as_of': datetime.date.today(),
             'is_stale': False,
+            # Demo data is generated in one pass, so no table can lag another.
+            'lagging_tables': [],
             'price_fetched_at': None,
             'is_price_stale': False,
         }

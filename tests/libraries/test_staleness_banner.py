@@ -57,3 +57,31 @@ class TestStalenessBanner(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestLaggingTableBanner(unittest.TestCase):
+    """A table drifting behind the others is a DIFFERENT failure from the
+    updater being down, and it used to be invisible."""
+
+    def test_lagging_table_is_named_when_the_updater_is_healthy(self):
+        banner = build_staleness_banner(
+            datetime.date(2026, 9, 6), is_stale=False,
+            lagging=['assets_hypothetical_history'])
+        self.assertIsNotNone(banner)
+        self.assertIn('assets_hypothetical_history', str(banner.children))
+
+    def test_no_banner_when_everything_is_current(self):
+        self.assertIsNone(build_staleness_banner(
+            datetime.date(2026, 9, 6), is_stale=False, lagging=[]))
+
+    def test_lagging_is_suppressed_when_the_whole_pipeline_is_behind(self):
+        # Saying "the updater is down" AND "one table is behind" is noise;
+        # the first explains the second.
+        banner = build_staleness_banner(
+            datetime.date(2026, 9, 1), is_stale=True,
+            lagging=['assets_hypothetical_history'])
+        self.assertNotIn('behind the other', str(banner.children))
+
+    def test_omitting_lagging_entirely_keeps_old_callers_working(self):
+        self.assertIsNone(build_staleness_banner(
+            datetime.date(2026, 9, 6), is_stale=False))

@@ -12,13 +12,14 @@ import dash_mantine_components as dmc
 
 
 def build_staleness_banner(data_as_of, is_stale, price_fetched_at=None,
-                           is_price_stale=False):
+                           is_price_stale=False, lagging=None):
     """
     Yellow banner naming the data's as-of date when the updater is behind,
-    and/or the price-snapshot age when that timer is behind.
+    and/or the price-snapshot age when that timer is behind, and/or any table
+    that has drifted behind the others.
 
-    price_fetched_at/is_price_stale are optional (default: not stale) so
-    existing history-only callers keep working unchanged.
+    price_fetched_at/is_price_stale/lagging are optional (default: nothing
+    wrong) so existing callers keep working unchanged.
 
     Returns None when everything is fresh, so the caller can drop the banner
     from the layout entirely.
@@ -43,6 +44,19 @@ def build_staleness_banner(data_as_of, is_stale, price_fetched_at=None,
             lines.append(f"Current prices as of {price_fetched_at}. The "
                          f"price-snapshot job has not run since then — run "
                          f"`python generators/price_snapshot.py` to refresh.")
+
+    # A table drifting behind the others is a different failure from the
+    # updater being down, and it used to be invisible: as_of was the OLDEST
+    # per-table date, so one lagging table silently dragged the headline for
+    # all of them. Reported separately, and only when the updater itself is
+    # healthy -- if the whole pipeline is behind, saying so once is enough.
+    if lagging and not is_stale:
+        names = ", ".join(lagging)
+        lines.append(f"Note: {names} "
+                     f"{'is' if len(lagging) == 1 else 'are'} behind the other "
+                     f"history tables. The tab(s) built from "
+                     f"{'it' if len(lagging) == 1 else 'them'} show older data "
+                     f"than the rest of the dashboard.")
 
     if not lines:
         return None
