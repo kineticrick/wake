@@ -27,7 +27,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from libraries.db.sql import *
 from libraries.db.sql import transaction_table_indexes
-from libraries.db import MysqlDB, dbcfg
+from libraries.db import MysqlDB, dbcfg, invalidate_query_cache
 from libraries.globals import FILEDIRS
 from generators.generator_helpers import (build_file_lists,
                                           process_csvs,
@@ -195,6 +195,15 @@ def main():
 
         # Commit is handled automatically by context manager
         print("\nCommitting transaction...")
+
+    # Every memoized read of trades/dividends/splits/entities/acquisitions is
+    # now stale. mysql_query keys on the query string alone and cannot know
+    # rows changed, so without this a freshly-imported trade stays invisible
+    # for up to MYSQL_CACHE_TTL (4 hours) -- to summary validation, and to
+    # daily_update.py, which would compute and PERSIST history from the
+    # pre-import log.
+    invalidate_query_cache()
+    print("✓ Query cache invalidated")
 
     print("\n✓ Import completed successfully!")
 

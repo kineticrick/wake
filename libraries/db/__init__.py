@@ -1,6 +1,7 @@
 from .dbcfg import dbcfg
 from .mysqldb import MysqlDB
-from .mysql_helpers import mysql_query, mysql_cache_evict
+from .mysql_helpers import (mysql_query, mysql_cache_evict,
+                            invalidate_query_cache)
 from .sql import (create_trades_table_sql,
                   create_dividends_table_sql, 
                   create_splits_table_sql, 

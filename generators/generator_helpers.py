@@ -6,7 +6,7 @@ import pandas as pd
 from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
-from libraries.db import MysqlDB, dbcfg
+from libraries.db import MysqlDB, dbcfg, invalidate_query_cache
 from libraries.db.sql import (drop_summary_table_sql, create_summary_table_sql,
                               insert_summary_sql, asset_name_query, 
                               asset_name_columns)
@@ -433,6 +433,12 @@ def write_db(summary_df: pd.DataFrame, verbose: bool) -> None:
                 print(sql)
             db.execute(sql)
         
+    # The summary table was just dropped and rewritten, so any memoized read
+    # of it (get_portfolio_summary, and price_snapshot.py's symbol list, which
+    # derives from it) is stale. Same contract as the importer: a writer
+    # invalidates the read cache.
+    invalidate_query_cache()
+
     print()
     print("Summary table written to database")
     print()
